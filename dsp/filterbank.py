@@ -24,7 +24,7 @@ parser.add_argument("-f", "--filename", dest="filename", default=".noexist", hel
 parser.add_argument("-e", "--endpoints", dest="endpoints", default=[0,None, 1], action=EndpointsAction, nargs="*", help='Start and stop endpoints for data, default will try to process the whole file')
 parser.add_argument("-v", "--verbose", dest="verbose", action="count", help='Verbosity, -v for verbose or -vv for very verbose')
 
-DECIMATE_BY = 8
+DECIMATE_BY = 2
 FILT_CONST = 50
 def gen_complex_chirp(fs=44100):
     f0=-fs/2.1
@@ -102,7 +102,7 @@ if args.filename[-4:] == ".wav":
 else:
     data = gen_complex_chirp()
 
-def prototype_filter(num_taps=DECIMATE_BY*FILT_CONST, normalized_cutoff=1./(DECIMATE_BY)):
+def prototype_filter(num_taps=DECIMATE_BY*FILT_CONST, normalized_cutoff=1./(DECIMATE_BY+.1*DECIMATE_BY)):
     return sg.firwin(num_taps, normalized_cutoff)
 
 show_specgram(data, title="Frequency plot of initial data")
