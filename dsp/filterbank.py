@@ -2,8 +2,6 @@
 #Needs the following libs
 #sudo apt-get install python-numpy python-scipy python-matplotlib
 
-import scipy.io.wavfile as wavfile
-from scipy.io import loadmat
 import numpy as np
 import argparse
 import sys
@@ -24,7 +22,7 @@ parser.add_argument("-f", "--filename", dest="filename", default=".noexist", hel
 parser.add_argument("-e", "--endpoints", dest="endpoints", default=[0,None, 1], action=EndpointsAction, nargs="*", help='Start and stop endpoints for data, default will try to process the whole file')
 parser.add_argument("-v", "--verbose", dest="verbose", action="count", help='Verbosity, -v for verbose or -vv for very verbose')
 
-DECIMATE_BY = 2
+DECIMATE_BY = 3
 FILT_CONST = 50
 def gen_complex_chirp(fs=44100):
     f0=-fs/2.1
@@ -51,7 +49,7 @@ def show_specgram(input_data, fft_size=512, one_sided=False, title=None):
 def basic_single_filter(input_data, show_filter=True):
     filt = prototype_filter()
     show_filter_response(filt, title="Basic lowpass filter response")
-    filtered_data = sg.fftconvolve(filt, input_data)
+    filtered_data = sg.lfilter(filt, 1, input_data)
     return filtered_data
 
 def polyphase_single_filter(input_data, decimate_by, filt):
