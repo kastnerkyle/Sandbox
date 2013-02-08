@@ -2,12 +2,15 @@
 #Needs the following libs
 #sudo apt-get install python-numpy python-scipy python-matplotlib
 
-import numpy as np
 import argparse
 import sys
 import matplotlib.pyplot as plot
-import scipy.signal as sg
+import matplotlib.colors as colors
+from matplotlib import cm
 from scipy.io import loadmat
+from scipy.io import wavfile
+import pandas as pd
+import numpy as np
 from numpy.lib.stride_tricks import as_strided as ast
 
 class EndpointsAction(argparse.Action):
@@ -24,8 +27,6 @@ parser.add_argument("-f", "--filename", dest="filename", default=".noexist", hel
 parser.add_argument("-e", "--endpoints", dest="endpoints", default=[0,None, 1], action=EndpointsAction, nargs="*", help='Start and stop endpoints for data, default will try to process the whole file')
 parser.add_argument("-v", "--verbose", dest="verbose", action="count", help='Verbosity, -v for verbose or -vv for very verbose')
 
-#out = np.fft.ifft(filtered_data_streams, n=decimate_by, axis=0)
-
 try:
     args = parser.parse_args()
 except SystemExit:
@@ -35,13 +36,6 @@ except SystemExit:
 if args.filename[-4:] == ".wav":
     sr, data = wavfile.read(args.filename)
     data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
-elif args.filename[-4:] == ".mat":
-    mat = loadmat(args.filename)
-    data = mat[mat.keys()[0]].flatten()
-if args.endpoints[1] == None:
-    data = np.asarray(data, dtype=np.complex64)[0:4000]
-else:
-    data = data[args.endpoints[0]:args.endpoints[1]]
 
 def overlap_data_stream(data, chunk=256, overlap_percentage=.75):
     chunk_count = len(data)/chunk
@@ -52,7 +46,33 @@ def overlap_data_stream(data, chunk=256, overlap_percentage=.75):
     strides = (data.itemsize*(chunk-overlap_samples), data.itemsize)
     return ast(data, shape=shape, strides=strides)
 
-o = overlap_data_stream(data)
-fft_o = np.fft.fft(o, n=256, axis=0)
-plot.pcolor(fft_o)
+FFT_SIZE=128
+TRANSIENT_TIME_S=.075
+SAMPLES_PER_S=44100
+overlapped = overlap_data_stream(data, chunk=FFT_SIZE, overlap_percentage=0).T
+windowed_overlapped = np.apply_along_axis(lambda x:np.hanning(FFT_SIZE)*x,0,overlapped)
+raw_spectrogram = np.fft.fftshift(np.fft.fft(windowed_overlapped, n=FFT_SIZE, axis=0), axes=0)
+log_abs_spectrogram = np.log(np.abs(raw_spectrogram))
+window_length = int(float((TRANSIENT_TIME_S)*SAMPLES_PER_S)/FFT_SIZE)
+if window_length < 3:
+    print "Unable to process, increse TRANSIENT_TIME_S to a larger value!"
+    sys.exit()
+spec_dframe = pd.DataFrame(np.abs(raw_spectrogram))
+#spec_dframe[0] is the same as np.abs(raw_spectrogram[:,0]), which means each row represents an FFT for a certain period of time
+rolling_kurtosis = pd.rolling_kurt(spec_dframe, window_length, axis=1).fillna()
+f, axarr = plot.subplots(2,sharex=True)
+#colors.normalize takes in vmin and vmax to try to set the colormap - this should do the same as
+#the default argument to norm but I wanted to document this for changing later
+axarr[0].imshow(log_abs_spectrogram,
+        norm=colors.normalize(vmin=np.amin(log_abs_spectrogram),
+                vmax=np.amax(log_abs_spectrogram),
+                clip=False),
+        cmap=cm.jet,
+        aspect='normal')
+axarr[1].imshow(rolling_kurtosis,
+        norm=colors.normalize(vmin=rolling_kurtosis.min().min(),
+            vmax=rolling_kurtosis.max().max(),
+            clip=False),
+        cmap=cm.jet,
+        aspect='normal')
 plot.show()
