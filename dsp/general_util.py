@@ -34,21 +34,8 @@ except SystemExit:
     sys.exit()
 
 if args.filename[-4:] == ".wav":
-    import wave, struct
-    waveFile = wave.open(args.filename, 'r')
-    length = waveFile.getnframes()
-    data = np.zeros((length,))
-    for i in range(0,length):
-        try:
-            waveData = waveFile.readframes(1)
-            d = struct.unpack("<h", waveData)
-            data[i] = int(d[0])
-        except struct.error:
-            data[i] = data[i-1]
-
-    #sr, data = wavfile.read(args.filename)
-    #data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
-
+    sr, data = wavfile.read(args.filename)
+    data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
 elif args.filename[-4:] == ".asc":
     all_sensor_data = pd.read_csv(args.filename, sep="\t", skiprows=2)
     #data = all_sensor_data['Mic[Pa]']
@@ -64,39 +51,46 @@ def overlap_data_stream(data, chunk=256, overlap_percentage=.75):
     strides = (data.itemsize*(chunk-overlap_samples), data.itemsize)
     return ast(data, shape=shape, strides=strides)
 
-def get_adjusted_clim(dframe):
-    rmin = dframe.min().min()
-    rmax = dframe.max().max()
-    hist,bins,_ = plot.hist(dframe.values.ravel(), 10000, range=(rmin,rmax))
-    area = np.asarray(np.cumsum(hist),dtype=np.double)
-    area /= float(np.max(area))
-    print area
-
-FFT_SIZE=128
-f, axarr = plot.subplots(3)
-[pxx,freqs,bins,spec] = axarr[0].specgram(data,
-        cmap=cm.jet,
-        sides='onesided')
-window_length = 80
-spec_dframe = pd.DataFrame(np.abs(pxx[::-1,:]))
+FFT_SIZE=64
+returned = plot.specgram(data)
+print returned
+overlapped = overlap_data_stream(data, chunk=FFT_SIZE, overlap_percentage=0).T
+windowed_overlapped = np.apply_along_axis(lambda x:np.hanning(FFT_SIZE)*x,0,overlapped)
+raw_spectrogram = np.fft.fftshift(np.fft.fft(windowed_overlapped, n=FFT_SIZE, axis=0), axes=0)
+log_abs_spectrogram = np.log(np.abs(raw_spectrogram))
+window_length = 50
+spec_dframe = pd.DataFrame(np.abs(raw_spectrogram))
 #spec_dframe[0] is the same as np.abs(raw_spectrogram[:,0]), which means each row represents an FFT for a certain period of time
 rolling_skewness = pd.rolling_skew(spec_dframe, window_length, axis=1).fillna()
 rolling_kurtosis = pd.rolling_kurt(spec_dframe, window_length, axis=1).fillna()
+def normalize(dframe):
+    #dframe += np.abs(dframe.min().min()) if np.abs(dframe.min().min()) < 0 else -1*np.abs(dframe.min().min())
+    #dframe /= np.abs(dframe.max().max())
+    return dframe
+rolling_skewness = normalize(rolling_skewness)
+rolling_kurtosis = normalize(rolling_kurtosis)
+f, axarr = plot.subplots(4)
 #colors.normalize takes in vmin and vmax to try to set the colormap - this should do the same as
 #the default argument to norm but I wanted to document this for changing later
-skewax = axarr[1].imshow(rolling_skewness,
+axarr[0].set_xlim([0,FFT_SIZE*rolling_kurtosis.shape[1]])
+axarr[0].set_autoscalex_on(False)
+axarr[0].plot(data)
+axarr[1].imshow(log_abs_spectrogram,
+        #norm=colors.normalize(vmin=np.amin(log_abs_spectrogram),
+        #        vmax=np.amax(log_abs_spectrogram),
+        #        clip=False),
+        cmap=cm.jet,
+        aspect='normal')
+axarr[2].imshow(rolling_skewness,
         #norm=colors.normalize(vmin=rolling_kurtosis.min().min(),
         #    vmax=rolling_kurtosis.max().max(),
         #    clip=False),
         cmap=cm.jet,
         aspect='normal')
-plot.figure()
-get_adjusted_clim(rolling_kurtosis)
-kurtax = axarr[2].imshow(rolling_kurtosis,
+axarr[3].imshow(rolling_kurtosis,
         #norm=colors.normalize(vmin=rolling_kurtosis.min().min(),
         #    vmax=rolling_kurtosis.max().max(),
         #    clip=False),
         cmap=cm.jet,
         aspect='normal')
-kurtax.set_clim(-1,3)
 plot.show()
