@@ -86,11 +86,11 @@ def get_adjusted_lims(dframe, num_bins=100, lower_bound=.1, upper_bound=.9):
 FFT_SIZE=256
 f, axarr = plot.subplots(2)
 decimate_by = 4
-data = filterbank.polyphase_single_filter(data, decimate_by, sg.firwin(200, 1./(decimate_by+1)))
+data = filterbank.polyphase_single_filter(data, decimate_by, sg.firwin(200, 1./(decimate_by+.25)))
 overlapped = overlap_data_stream(data, chunk=FFT_SIZE, overlap_percentage=.5).T
 windowed_overlapped = np.apply_along_axis(lambda x: np.hanning(len(x))*x,0,overlapped)
 raw_spectrogram = np.fft.fftshift(np.fft.fft(windowed_overlapped, n=FFT_SIZE, axis=0), axes=0)
-window_length = 25/decimate_by
+window_length = 100/decimate_by
 #axarr[0].specgram(data,
 #        cmap=cm.gray,
 #        sides='onesided')
