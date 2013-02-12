@@ -83,33 +83,34 @@ def polyphase_analysis(input_data, decimate_by, filt):
     out = np.fft.ifft(filtered_data_streams, n=decimate_by, axis=0)
     return out
 
-try:
-    args = parser.parse_args()
-except SystemExit:
-    parser.print_help()
-    sys.exit()
+if __name__=="__main__":
+    try:
+        args = parser.parse_args()
+    except SystemExit:
+        parser.print_help()
+        sys.exit()
 
-if args.filename[-4:] == ".wav":
-    sr, data = wavfile.read(args.filename)
-    data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
-    if args.endpoints[1] == None:
-        pass
+    if args.filename[-4:] == ".wav":
+        sr, data = wavfile.read(args.filename)
+        data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
+        if args.endpoints[1] == None:
+            pass
+        else:
+            data = data[args.endpoints[0]:args.endpoints[1]]
+        #data /= 32768
     else:
-        data = data[args.endpoints[0]:args.endpoints[1]]
-    #data /= 32768
-else:
-    data = gen_complex_chirp()
+        data = gen_complex_chirp()
 
-def prototype_filter(num_taps=DECIMATE_BY*FILT_CONST, normalized_cutoff=1./(DECIMATE_BY+.1*DECIMATE_BY)):
-    return sg.firwin(num_taps, normalized_cutoff)
+    def prototype_filter(num_taps=DECIMATE_BY*FILT_CONST, normalized_cutoff=1./(DECIMATE_BY+.1*DECIMATE_BY)):
+        return sg.firwin(num_taps, normalized_cutoff)
 
-show_specgram(data, title="Frequency plot of initial data")
-basic = basic_single_filter(data)
-show_specgram(basic, title="Frequency plot of filtered data using standard filtering")
-decimated = basic[::DECIMATE_BY]
-show_specgram(decimated, title="Frequency plot of filtered, then decimated data")
-decimated_filtered = polyphase_single_filter(data, DECIMATE_BY, prototype_filter())
-show_specgram(decimated_filtered, title="Frequency plot of polyphase filtered data")
-decimated_filterbank = polyphase_analysis(data, DECIMATE_BY, prototype_filter())
-for i in range(decimated_filterbank.shape[0]):
-    show_specgram(decimated_filterbank[i], title="Frequency plot of output " + `i` + " from filterbank")
+    show_specgram(data, title="Frequency plot of initial data")
+    basic = basic_single_filter(data)
+    show_specgram(basic, title="Frequency plot of filtered data using standard filtering")
+    decimated = basic[::DECIMATE_BY]
+    show_specgram(decimated, title="Frequency plot of filtered, then decimated data")
+    decimated_filtered = polyphase_single_filter(data, DECIMATE_BY, prototype_filter())
+    show_specgram(decimated_filtered, title="Frequency plot of polyphase filtered data")
+    decimated_filterbank = polyphase_analysis(data, DECIMATE_BY, prototype_filter())
+    for i in range(decimated_filterbank.shape[0]):
+        show_specgram(decimated_filterbank[i], title="Frequency plot of output " + `i` + " from filterbank")
