@@ -59,7 +59,7 @@ def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info=""):
     raw_spectrogram = np.fft.fftshift(np.fft.fft(windowed_overlapped, n=nfft, axis=0), axes=0)
     spec_dframe = pd.DataFrame(np.abs(raw_spectrogram[:raw_spectrogram.shape[0]/2,:]))
     #spec_dframe = pd.DataFrame(np.abs(raw_spectrogram))
-    fulltitle = "Spectrogram and spectral kurtosis\n $F_s=$" + `44100/decimate_by` + ", $overlap=$" + `overlap_fraction` + ", $NFFT=$" + `nfft/2` + ",  $NWND=$" + `base_window_length`
+    fulltitle = "Spectrogram and spectral kurtosis\n " + info + " $F_s=$" + `44100/decimate_by` + ", $O=$" + `overlap_fraction` + ", $NFFT=$" + `nfft/2` + ",  $NWND=$" + `base_window_length`
     f.suptitle(fulltitle)
     axarr[0].imshow(np.log(spec_dframe.values),
             cmap=cm.gray,
@@ -92,7 +92,8 @@ class EndpointsAction(argparse.Action):
             setattr(args, self.dest, defaults)
 
 parser = argparse.ArgumentParser(description="Apply filter tutorial to input data")
-parser.add_argument("-f", "--filename", dest="filename", default=".noexist", help="Optional WAV file to be processed, default generates a 1 sec full range complex chirp to filter")
+parser.add_argument("-f", "--filename", dest="filename", default=".noexist", help="File to be processed (.wav or .asc)")
+parser.add_argument("-n", "--nfft", dest="nfft", type=int, default=128, help="Number of FFT points to use for STFT processing")
 parser.add_argument("-e", "--endpoints", dest="endpoints", default=[0,None, 1], action=EndpointsAction, nargs="*", help='Start and stop endpoints for data, default will try to process the whole file')
 parser.add_argument("-v", "--verbose", dest="verbose", action="count", help='Verbosity, -v for verbose or -vv for very verbose')
 
@@ -101,6 +102,10 @@ try:
 except SystemExit:
     parser.print_help()
     sys.exit()
+
+nfft=args.nfft
+decimate_by = 1
+overlap_fraction = .85
 
 if args.filename[-4:] == ".wav":
     import wave, struct
@@ -115,14 +120,10 @@ if args.filename[-4:] == ".wav":
         except struct.error:
             data[i] = data[i-1]
     waveFile.close()
-    #sr, data = wavfile.read(args.filename)
-    #data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
+    run_kurtosis(data, nfft, decimate_by, overlap_fraction, info=args.filename.split("/")[-1].split(".")[0])
 
 elif args.filename[-4:] == ".asc":
     all_sensor_data = pd.read_csv(args.filename, sep="\t", skiprows=2)
-    nfft=128
-    decimate_by = 1
-    overlap_fraction = .85
     #Get information tag from string (ex Jan16_0003.asc -> 3)
     tag = int(args.filename.split("/")[-1].split("_")[-1].split(".")[0])
 
@@ -138,6 +139,8 @@ elif args.filename[-4:] == ".asc":
             1:" 50% load ",
             2:" 75% load ",
             3:" 100% load "}
+
+    #Skip time,rpm,and rev data
     for i in all_sensor_data.columns[2:]:
         run_kurtosis(all_sensor_data[i], nfft, decimate_by, overlap_fraction, info=i+rpms[tag/4]+loads[(tag)%4])
 
