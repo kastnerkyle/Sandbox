@@ -5,7 +5,7 @@
 #Automate this file with
 #for i in `ls -d`; do ./spectral_kurtosis.py -f $i; done
 #For example
-#for i in `ls -d ~/engine_data/*/*`;do echo "Running $i"; ./spectral_kurtosis.py -f $i; done
+#for i in `ls -d ~/engine_data/*/*`; do for v in 128 256; do echo "Running $i"; ./spectral_kurtosis.py -f $i -n $v; done; done
 
 import argparse
 import sys
@@ -68,6 +68,10 @@ def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info=""):
             interpolation='bicubic',
             origin='lower',
             aspect='normal')
+    xaxislabel="Time (Overlapped Samples)"
+    yaxislabel="Frequency (FFT Bins)"
+    axarr[0].set_xlabel(xaxislabel)
+    axarr[0].set_ylabel(yaxislabel)
     rolling_kurtosis = pd.rolling_kurt(spec_dframe, window_length, axis=1).fillna()
     lower,upper = get_adjusted_lims(rolling_kurtosis, num_bins=10000)
     kurtax = axarr[1].imshow(rolling_kurtosis.values,
@@ -79,6 +83,8 @@ def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info=""):
             interpolation='bicubic',
             origin='lower',
             aspect='normal')
+    axarr[1].set_xlabel(xaxislabel)
+    axarr[1].set_ylabel(yaxislabel)
     plot.savefig("".join(fulltitle.split(" ")) + ".png")
     #plot.show()
 
@@ -92,10 +98,10 @@ class EndpointsAction(argparse.Action):
             setattr(args, self.dest, defaults)
 
 parser = argparse.ArgumentParser(description="Apply filter tutorial to input data")
-parser.add_argument("-f", "--filename", dest="filename", default=".noexist", help="File to be processed (.wav or .asc)")
-parser.add_argument("-n", "--nfft", dest="nfft", type=int, default=128, help="Number of FFT points to use for STFT processing")
+parser.add_argument("-f", "--filename", dest="filename", help="File to be processed (.wav or .asc)")
+parser_nfft_default = 128
+parser.add_argument("-n", "--nfft", dest="nfft", default=parser_nfft_default, type=int, help="Number of FFT points, default is " + `parser_nfft_default`)
 parser.add_argument("-e", "--endpoints", dest="endpoints", default=[0,None, 1], action=EndpointsAction, nargs="*", help='Start and stop endpoints for data, default will try to process the whole file')
-parser.add_argument("-v", "--verbose", dest="verbose", action="count", help='Verbosity, -v for verbose or -vv for very verbose')
 
 try:
     args = parser.parse_args()
@@ -103,10 +109,14 @@ except SystemExit:
     parser.print_help()
     sys.exit()
 
+if not args.filename:
+    parser.print_help()
+    parser.error("ERROR: Filename is a required argument!")
+    sys.exit()
+
 nfft=args.nfft
 decimate_by = 1
 overlap_fraction = .85
-
 if args.filename[-4:] == ".wav":
     import wave, struct
     waveFile = wave.open(args.filename, 'r')
@@ -121,6 +131,8 @@ if args.filename[-4:] == ".wav":
             data[i] = data[i-1]
     waveFile.close()
     run_kurtosis(data, nfft, decimate_by, overlap_fraction, info=args.filename.split("/")[-1].split(".")[0])
+    #sr, data = wavfile.read(args.filename)
+    #data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
 
 elif args.filename[-4:] == ".asc":
     all_sensor_data = pd.read_csv(args.filename, sep="\t", skiprows=2)
@@ -139,8 +151,6 @@ elif args.filename[-4:] == ".asc":
             1:" 50% load ",
             2:" 75% load ",
             3:" 100% load "}
-
-    #Skip time,rpm,and rev data
     for i in all_sensor_data.columns[2:]:
         run_kurtosis(all_sensor_data[i], nfft, decimate_by, overlap_fraction, info=i+rpms[tag/4]+loads[(tag)%4])
 
