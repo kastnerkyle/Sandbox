@@ -3,9 +3,9 @@
 #sudo apt-get install python-numpy python-scipy python-matplotlib
 #Also using filterbank.py from www.github.com/kastnerkyle/dsp
 #Automate this file with
-#for i in `ls -d`; do ./spectral_kurtosis.py -f $i; done
+#for i in `ls -d`; do ./spectral_kurtosis.py -f $i -s; done
 #For example
-#for i in `ls -d ~/engine_data/*/*`; do for v in 128 256; do echo "Running $i"; ./spectral_kurtosis.py -f $i -n $v; done; done
+#for i in `ls -d ~/engine_data/*/*`; do for v in 128 256; do echo "Running $i"; ./spectral_kurtosis.py -f $i -n $v -s; done; done
 
 import argparse
 import sys
@@ -50,7 +50,7 @@ def get_adjusted_lims(dframe, num_bins=100, lower_bound=.1, upper_bound=.9):
     upper_bin = filter(lambda x: x[0] > upper_bound, hist_group)[0][1]
     return lower_bin, upper_bin
 
-def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=False, show_plot=False, save_plot=True):
+def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=False, save_plot=False):
     if whiten:
         data += np.random.randn(len(data))
     #Heuristic window to get nice plots
@@ -116,11 +116,11 @@ def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=Fals
     kurtcb = f.colorbar(kurtax, cax=kurtcbax)
     kurtcb.set_label(kurtcblabel)
 
-    if show_plot:
-        plot.show()
     if save_plot:
         plot.savefig("".join(fulltitle.split(" ")) + ".png")
         plot.close()
+    else:
+        plot.show()
 
 class EndpointsAction(argparse.Action):
     def __call__(self, parser, args, values, option = None):
@@ -138,9 +138,8 @@ parser_decimation_default = 1
 parser.add_argument("-n", "--nfft", dest="nfft", default=parser_nfft_default, type=int, help="Number of FFT points, default is " + `parser_nfft_default`)
 parser.add_argument("-d", "--decimate", dest="decimate", default=parser_decimation_default, type=int, help="Value to decimate by, default is " + `parser_nfft_default`)
 parser.add_argument("-e", "--endpoints", dest="endpoints", default=[0,None, 1], action=EndpointsAction, nargs="*", help='Start and stop endpoints for data, default will try to process the whole file')
-parser.add_argument("-p", "--plot", dest="plot", action="store_true", help="Flag to enable display of plots - program will not show plots by default")
-parser.add_argument("-s", "--save", dest="save", action="store_false", help="Flag to disable saving data to .png - program will save data by default")
-parser.add_argument("-w", "--whiten", dest="whiten", action="store_false", help="Flag to disable additive whitening (only applies to generated chirp i.e. no argument for -f)")
+parser.add_argument("-w", "--whiten", dest="whiten", action="store_true", help="Flag to enable additive whitening which can help with visualization")
+parser.add_argument("-s", "--save", dest="save", action="store_true", help="Flag to save data to .png instead of a plot view")
 
 try:
     args = parser.parse_args()
@@ -166,7 +165,6 @@ if args.filename[-4:] == ".wav":
     waveFile.close()
     run_kurtosis(data, nfft, decimate_by, overlap_fraction,
             info=args.filename.split("/")[-1].split(".")[0],
-            show_plot=args.plot,
             save_plot=args.save)
     #sr, data = wavfile.read(args.filename)
     #data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
@@ -192,7 +190,6 @@ elif args.filename[-4:] == ".asc":
     for i in all_sensor_data.columns[2:]:
         run_kurtosis(all_sensor_data[i], nfft, decimate_by, overlap_fraction,
                 info=i+rpms[tag/4]+loads[tag%4],
-                show_plot=args.plot,
                 save_plot=args.save)
 
     #data = all_sensor_data['Mic[Pa]']
@@ -206,5 +203,4 @@ elif args.filename == ".nofile":
     run_kurtosis(data, nfft, decimate_by, overlap_fraction,
                  info="Generated chirp",
                  whiten=args.whiten,
-                 show_plot=args.plot,
                  save_plot=args.save)
