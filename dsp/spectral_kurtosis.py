@@ -19,10 +19,12 @@ import numpy as np
 from numpy.lib.stride_tricks import as_strided as ast
 import filterbank
 import scipy.signal as sg
+import copy
+import time
 
 def overlap_data_stream(data, chunk=256, overlap_percentage=.75):
     chunk_count = len(data)/chunk
-    overlap_samples = int(chunk*overlap_percentage)+1
+    overlap_samples = int(chunk*overlap_percentage)
     extended_length = (chunk_count+1)*(chunk-overlap_samples)
     data = np.hstack((np.asarray(data),np.asarray([0]*(extended_length-len(data)))))
     shape = (len(data)/(chunk-overlap_samples),chunk)
@@ -34,9 +36,12 @@ def get_adjusted_lims(dframe, num_bins=100, lower_bound=.1, upper_bound=.9):
     #rmax = dframe.max().max()
     #plot.figure()
     #hist,bins,_ = plot.hist(dframe.values.flatten(), num_bins, range=(rmin,rmax))
-    dframe_vals = dframe.values.flatten()
-    dframe_vals = dframe_vals[np.isfinite(dframe_vals)]
-    dframe_vals = np.clip(dframe_vals, -3*np.std(dframe_vals), 3*np.std(dframe_vals))
+    if type(dframe) == pd.core.frame.DataFrame:
+        dframe_vals = dframe.values.flatten()
+        dframe_vals = dframe_vals[np.isfinite(dframe_vals)]
+    else:
+        dframe_vals = dframe[np.isfinite(dframe)]
+    dframe_vals = np.clip(dframe_vals, -3*np.ma.std(dframe_vals), 3*np.ma.std(dframe_vals))
     hist,bins = np.histogram(dframe_vals, num_bins)
     area = np.asarray(np.cumsum(hist),dtype=np.double)
     area /= np.max(area)
@@ -45,7 +50,7 @@ def get_adjusted_lims(dframe, num_bins=100, lower_bound=.1, upper_bound=.9):
     upper_bin = filter(lambda x: x[0] > upper_bound, hist_group)[0][1]
     return lower_bin, upper_bin
 
-def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info=""):
+def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", show_plot=False, save_plot=True):
     #Heuristic window to get nice plots
     base_window_length = int(overlap_fraction*nfft)
     f, axarr = plot.subplots(2)
@@ -61,10 +66,24 @@ def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info=""):
     #spec_dframe = pd.DataFrame(np.abs(raw_spectrogram))
     fulltitle = "Spectrogram and spectral kurtosis\n " + info + " $F_s=$" + `44100/decimate_by` + ", $O=$" + `overlap_fraction` + ", $NFFT=$" + `nfft/2` + ",  $NWND=$" + `base_window_length`
     f.suptitle(fulltitle)
-    axarr[0].imshow(np.log(spec_dframe.values),
+    #axarr[0].specgram(data,
+    #        NFFT=nfft,
+    #        noverlap=int(overlap_fraction*nfft),
+    #        cmap=cm.gray,
+    #        origin='lower',
+    #        interpolation='bicubic',
+    #        sides='onesided',
+    #        aspect='normal')
+    log_spec = copy.copy(spec_dframe.values.flatten())
+    log_spec = np.ma.log(log_spec)
+    log_spec = np.reshape(log_spec, spec_dframe.values.shape)
+    lower, upper = get_adjusted_lims(log_spec, num_bins=10000)
+    specax = axarr[0].imshow(log_spec,
             cmap=cm.gray,
-            #cmap=cm.spectral,
-            #cmap=cm.gist_stern,
+            vmin=lower,
+            vmax=upper,
+    #        cmap=cm.spectral,
+    #        cmap=cm.gist_stern,
             interpolation='bicubic',
             origin='lower',
             aspect='normal')
@@ -85,8 +104,21 @@ def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info=""):
             aspect='normal')
     axarr[1].set_xlabel(xaxislabel)
     axarr[1].set_ylabel(yaxislabel)
-    plot.savefig("".join(fulltitle.split(" ")) + ".png")
-    #plot.show()
+    speccblabel = "Amplitude (dB)"
+    kurtcblabel = "Unbiased Kurtosis"
+    f.subplots_adjust(right=0.8)
+    speccbax = f.add_axes([.85,.53,.025,.35])
+    kurtcbax = f.add_axes([.85,.1,.025,.35])
+    speccb = f.colorbar(specax, cax=speccbax)
+    speccb.set_label(speccblabel)
+    kurtcb = f.colorbar(kurtax, cax=kurtcbax)
+    kurtcb.set_label(kurtcblabel)
+
+    if show_plot:
+        plot.show()
+    if save_plot:
+        plot.savefig("".join(fulltitle.split(" ")) + ".png")
+        plot.close()
 
 class EndpointsAction(argparse.Action):
     def __call__(self, parser, args, values, option = None):
@@ -100,8 +132,12 @@ class EndpointsAction(argparse.Action):
 parser = argparse.ArgumentParser(description="Apply filter tutorial to input data")
 parser.add_argument("-f", "--filename", dest="filename", help="File to be processed (.wav or .asc)")
 parser_nfft_default = 128
+parser_decimation_default = 1
 parser.add_argument("-n", "--nfft", dest="nfft", default=parser_nfft_default, type=int, help="Number of FFT points, default is " + `parser_nfft_default`)
+parser.add_argument("-d", "--decimate", dest="decimate", default=parser_decimation_default, type=int, help="Value to decimate by, default is " + `parser_nfft_default`)
 parser.add_argument("-e", "--endpoints", dest="endpoints", default=[0,None, 1], action=EndpointsAction, nargs="*", help='Start and stop endpoints for data, default will try to process the whole file')
+parser.add_argument("-p", "--plot", dest="plot", action="store_true", help="Flag to enable display of plots - program will not show plots by default")
+parser.add_argument("-s", "--save", dest="save", action="store_false", help="Flag to disable saving data to .png - program will save data by default")
 
 try:
     args = parser.parse_args()
@@ -115,8 +151,8 @@ if not args.filename:
     sys.exit()
 
 nfft=args.nfft
-decimate_by = 1
-overlap_fraction = .85
+decimate_by = args.decimate
+overlap_fraction = .66
 if args.filename[-4:] == ".wav":
     import wave, struct
     waveFile = wave.open(args.filename, 'r')
@@ -130,7 +166,10 @@ if args.filename[-4:] == ".wav":
         except struct.error:
             data[i] = data[i-1]
     waveFile.close()
-    run_kurtosis(data, nfft, decimate_by, overlap_fraction, info=args.filename.split("/")[-1].split(".")[0])
+    run_kurtosis(data, nfft, decimate_by, overlap_fraction,
+            info=args.filename.split("/")[-1].split(".")[0],
+            show_plot=args.plot,
+            save_plot=args.save)
     #sr, data = wavfile.read(args.filename)
     #data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
 
@@ -141,7 +180,6 @@ elif args.filename[-4:] == ".asc":
 
     #Correct for 1 based indexing on file tags
     tag -= 1
-
     #Map tag to rpm and load values"
     rpms = {0:" 1500 rpm ",
             1:" 2000 rpm ",
@@ -151,8 +189,13 @@ elif args.filename[-4:] == ".asc":
             1:" 50% load ",
             2:" 75% load ",
             3:" 100% load "}
+    print "Tag number is " + `tag`
+    print "Title is calculated as " + `rpms[tag/4]` + `loads[tag%4]`
     for i in all_sensor_data.columns[2:]:
-        run_kurtosis(all_sensor_data[i], nfft, decimate_by, overlap_fraction, info=i+rpms[tag/4]+loads[(tag)%4])
+        run_kurtosis(all_sensor_data[i], nfft, decimate_by, overlap_fraction,
+                info=i+rpms[tag/4]+loads[tag%4],
+                show_plot=args.plot,
+                save_plot=args.save)
 
     #data = all_sensor_data['Mic[Pa]']
     #data = all_sensor_data['accel_X[g]']
