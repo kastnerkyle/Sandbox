@@ -50,7 +50,9 @@ def get_adjusted_lims(dframe, num_bins=100, lower_bound=.1, upper_bound=.9):
     upper_bin = filter(lambda x: x[0] > upper_bound, hist_group)[0][1]
     return lower_bin, upper_bin
 
-def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", show_plot=False, save_plot=True):
+def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=False, show_plot=False, save_plot=True):
+    if whiten:
+        data += np.random.randn(len(data))
     #Heuristic window to get nice plots
     base_window_length = int(overlap_fraction*nfft)
     f, axarr = plot.subplots(2)
@@ -130,7 +132,7 @@ class EndpointsAction(argparse.Action):
             setattr(args, self.dest, defaults)
 
 parser = argparse.ArgumentParser(description="Apply filter tutorial to input data")
-parser.add_argument("-f", "--filename", dest="filename", help="File to be processed (.wav or .asc)")
+parser.add_argument("-f", "--filename", default=".nofile", dest="filename", help="File to be processed (.wav or .asc)")
 parser_nfft_default = 128
 parser_decimation_default = 1
 parser.add_argument("-n", "--nfft", dest="nfft", default=parser_nfft_default, type=int, help="Number of FFT points, default is " + `parser_nfft_default`)
@@ -138,16 +140,12 @@ parser.add_argument("-d", "--decimate", dest="decimate", default=parser_decimati
 parser.add_argument("-e", "--endpoints", dest="endpoints", default=[0,None, 1], action=EndpointsAction, nargs="*", help='Start and stop endpoints for data, default will try to process the whole file')
 parser.add_argument("-p", "--plot", dest="plot", action="store_true", help="Flag to enable display of plots - program will not show plots by default")
 parser.add_argument("-s", "--save", dest="save", action="store_false", help="Flag to disable saving data to .png - program will save data by default")
+parser.add_argument("-w", "--whiten", dest="whiten", action="store_false", help="Flag to disable additive whitening (only applies to generated chirp i.e. no argument for -f)")
 
 try:
     args = parser.parse_args()
 except SystemExit:
     parser.print_help()
-    sys.exit()
-
-if not args.filename:
-    parser.print_help()
-    parser.error("ERROR: Filename is a required argument!")
     sys.exit()
 
 nfft=args.nfft
@@ -203,3 +201,10 @@ elif args.filename[-4:] == ".asc":
     #data = all_sensor_data['accel_Z[g]']
     #data = all_sensor_data['P_waterjacket[bar]']
 
+elif args.filename == ".nofile":
+    data = filterbank.gen_complex_chirp()
+    run_kurtosis(data, nfft, decimate_by, overlap_fraction,
+                 info="Generated chirp",
+                 whiten=args.whiten,
+                 show_plot=args.plot,
+                 save_plot=args.save)
