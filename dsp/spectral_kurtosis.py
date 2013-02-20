@@ -109,7 +109,8 @@ def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=Fals
     axarr[0].set_ylabel(yaxislabel)
     rolling_kurtosis = pd.rolling_kurt(spec_dframe, window_length, axis=1).fillna()
     lower,upper = get_adjusted_lims(rolling_kurtosis, num_bins=10000)
-    kurtax = axarr[1].imshow(rolling_kurtosis.values,
+    #Remove 0:nfft*overlap_fraction column values to adjust for plotting offest
+    kurtax = axarr[1].imshow(rolling_kurtosis.values[:, int(nfft*overlap_fraction):],
             vmin=lower,
             vmax=upper,
             cmap=cm.gray,
