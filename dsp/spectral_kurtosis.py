@@ -51,7 +51,7 @@ def get_adjusted_lims(dframe, num_bins=100, lower_bound=.1, upper_bound=.9):
     upper_bin = filter(lambda x: x[0] > upper_bound, hist_group)[0][1]
     return lower_bin, upper_bin
 
-def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=False, save_plot=False):
+def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=False, save_plot=False, twosided=False):
     if whiten:
         #Apply an lpc filter to perform "pre-whitening"
         #See "The Application of Spectral Kurtosis to Bearing Diagnostics", N. Sawalhi and R. Randall, ACOUSTICS 2004
@@ -76,9 +76,11 @@ def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=Fals
     overlapped = overlap_data_stream(data, chunk=nfft, overlap_percentage=overlap_fraction).T
     windowed_overlapped = np.apply_along_axis(lambda x: np.hanning(len(x))*x,0,overlapped)
     raw_spectrogram = np.fft.fftshift(np.fft.fft(windowed_overlapped, n=nfft, axis=0), axes=0)
-    spec_dframe = pd.DataFrame(np.abs(raw_spectrogram[:raw_spectrogram.shape[0]/2,:]))
-    #spec_dframe = pd.DataFrame(np.abs(raw_spectrogram))
-    fulltitle = "Spectrogram and spectral kurtosis" + (", prewhitened" if whiten else "") + "\n" + info + " $F_s=$" + `44100/decimate_by` + ", $O=$" + `overlap_fraction` + ", $NFFT=$" + `nfft/2` + ",  $NWND=$" + `base_window_length`
+    if twosided:
+        spec_dframe = pd.DataFrame(np.abs(raw_spectrogram))
+    else:
+        spec_dframe = pd.DataFrame(np.abs(raw_spectrogram[:raw_spectrogram.shape[0]/2,:]))
+    fulltitle = "Spectrogram and spectral kurtosis" + (", prewhitened" if whiten else "") + "\n" + info + " $F_s=$" + `44100/decimate_by` + ", $O=$" + `overlap_fraction` + ", $NFFT=$" + `nfft if twosided else nfft/2` + ",  $NWND=$" + `base_window_length`
     f.suptitle(fulltitle)
     #axarr[0].specgram(data,
     #        NFFT=nfft,
@@ -148,10 +150,11 @@ parser.add_argument("-f", "--filename", default=".nofile", dest="filename", help
 parser_nfft_default = 128
 parser_decimation_default = 1
 parser.add_argument("-n", "--nfft", dest="nfft", default=parser_nfft_default, type=int, help="Number of FFT points, default is " + `parser_nfft_default`)
+parser.add_argument("-t", "--twosided", dest="twosided", action="store_true", help="Flag to enable two-sided graphs, default is one-sided")
 parser.add_argument("-d", "--decimate", dest="decimate", default=parser_decimation_default, type=int, help="Value to decimate by, default is " + `parser_nfft_default`)
-parser.add_argument("-e", "--endpoints", dest="endpoints", default=[0,None, 1], action=EndpointsAction, nargs="*", help='Start and stop endpoints for data, default will try to process the whole file')
 parser.add_argument("-w", "--whiten", dest="whiten", action="store_true", help="Flag to enable additive whitening which can help with visualization")
 parser.add_argument("-s", "--save", dest="save", action="store_true", help="Flag to save data to .png instead of a plot view")
+parser.add_argument("-e", "--endpoints", dest="endpoints", default=[0,None, 1], action=EndpointsAction, nargs="*", help='Start and stop endpoints for data, default will try to process the whole file')
 
 try:
     args = parser.parse_args()
@@ -177,7 +180,8 @@ if args.filename[-4:] == ".wav":
     waveFile.close()
     run_kurtosis(data, nfft, decimate_by, overlap_fraction,
             info=args.filename.split("/")[-1].split(".")[0],
-            save_plot=args.save)
+            save_plot=args.save,
+            twosided=args.twosided)
     #sr, data = wavfile.read(args.filename)
     #data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
 
@@ -202,7 +206,8 @@ elif args.filename[-4:] == ".asc":
     for i in all_sensor_data.columns[2:]:
         run_kurtosis(all_sensor_data[i], nfft, decimate_by, overlap_fraction,
                 info=i+rpms[tag/4]+loads[tag%4],
-                save_plot=args.save)
+                save_plot=args.save,
+                twosided=args.twosided)
 
     #data = all_sensor_data['Mic[Pa]']
     #data = all_sensor_data['accel_X[g]']
@@ -216,4 +221,5 @@ elif args.filename == ".nofile":
     run_kurtosis(data, nfft, decimate_by, overlap_fraction,
                  info="Generated chirp",
                  whiten=args.whiten,
+                 twosided=args.twosided,
                  save_plot=args.save)
