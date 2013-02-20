@@ -5,7 +5,7 @@
 #Automate this file with
 #for i in `ls -d`; do ./spectral_kurtosis.py -f $i -s; done
 #For example
-#for i in `ls -d ~/engine_data/*/*`; do for v in 128 256; do echo "Running $i"; ./spectral_kurtosis.py -f $i -n $v -s; done; done
+#for i in `ls -d ~/engine_data/*/*`; do for v in 128 256; do echo "Running $i"; ./spectral_kurtosis.py -f $i -w -n $v -s; done; done
 
 import argparse
 import sys
