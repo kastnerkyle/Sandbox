@@ -16,6 +16,7 @@ from scipy.io import loadmat
 from scipy.io import wavfile
 import pandas as pd
 import numpy as np
+import scipy as sp
 from numpy.lib.stride_tricks import as_strided as ast
 import filterbank
 import scipy.signal as sg
@@ -52,7 +53,18 @@ def get_adjusted_lims(dframe, num_bins=100, lower_bound=.1, upper_bound=.9):
 
 def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=False, save_plot=False):
     if whiten:
-        data += np.random.randn(len(data))
+        #Apply an lpc filter to perform "pre-whitening"
+        #See "The Application of Spectral Kurtosis to Bearing Diagnostics", N. Sawalhi and R. Randall, ACOUSTICS 2004
+        coeffs = 100
+        data = data - np.mean(data)
+        acorr_data = np.correlate(data, data, 'full')
+        r = acorr_data[data.size-1:data.size+coeffs]
+        phi = np.dot(sp.linalg.inv(sp.linalg.toeplitz(r[:-1])), -r[1:])
+        lpfilt = np.concatenate(([1.], phi))
+        data = sg.lfilter(lpfilt, 1, data)
+
+        #Remove filter transient
+        data = data[coeffs+1:]
     #Heuristic window to get nice plots
     base_window_length = int(overlap_fraction*nfft)
     f, axarr = plot.subplots(2)
@@ -66,7 +78,7 @@ def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=Fals
     raw_spectrogram = np.fft.fftshift(np.fft.fft(windowed_overlapped, n=nfft, axis=0), axes=0)
     spec_dframe = pd.DataFrame(np.abs(raw_spectrogram[:raw_spectrogram.shape[0]/2,:]))
     #spec_dframe = pd.DataFrame(np.abs(raw_spectrogram))
-    fulltitle = "Spectrogram and spectral kurtosis\n " + info + " $F_s=$" + `44100/decimate_by` + ", $O=$" + `overlap_fraction` + ", $NFFT=$" + `nfft/2` + ",  $NWND=$" + `base_window_length`
+    fulltitle = "Spectrogram and spectral kurtosis" + (", prewhitened" if whiten else "") + "\n" + info + " $F_s=$" + `44100/decimate_by` + ", $O=$" + `overlap_fraction` + ", $NFFT=$" + `nfft/2` + ",  $NWND=$" + `base_window_length`
     f.suptitle(fulltitle)
     #axarr[0].specgram(data,
     #        NFFT=nfft,
@@ -200,6 +212,7 @@ elif args.filename[-4:] == ".asc":
 
 elif args.filename == ".nofile":
     data = filterbank.gen_complex_chirp()
+    data += np.random.randn(len(data))
     run_kurtosis(data, nfft, decimate_by, overlap_fraction,
                  info="Generated chirp",
                  whiten=args.whiten,
