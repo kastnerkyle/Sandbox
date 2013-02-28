@@ -52,19 +52,31 @@ def get_adjusted_lims(dframe, num_bins=100, lower_bound=.1, upper_bound=.9):
     return lower_bin, upper_bin
 
 def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=False, save_plot=False, twosided=False):
-    if whiten:
+    if whiten==True:
         #Apply an lpc filter to perform "pre-whitening"
         #See "The Application of Spectral Kurtosis to Bearing Diagnostics", N. Sawalhi and R. Randall, ACOUSTICS 2004
         coeffs = 100
         data = data - np.mean(data)
-        acorr_data = np.correlate(data, data, 'full')
-        r = acorr_data[data.size-1:data.size+coeffs]
+
+        #These two lines work, but are very, very slow on large datasets. Since we only need coeffs+1 correlations, why not do that?
+        #acorr_data = np.correlate(data, data, mode='full')
+        #r = acorr_data[data.size-1:data.size+coeffs]
+
+        extended_data = np.hstack((data,data))
+        acorr_data = np.asarray([np.convolve(extended_data[0+i:data.size+i], data[::-1].conj(), 'valid') for i in range(coeffs+1)])
+        acorr_data.shape = (acorr_data.shape[0])
+        r = acorr_data
+
+        #Equivalent
+        #print np.correlate(data,data,'full')[data.size-1]
+        #print np.convolve(data,data[::-1].conj(), 'valid')
+
         phi = np.dot(sp.linalg.inv(sp.linalg.toeplitz(r[:-1])), -r[1:])
         lpfilt = np.concatenate(([1.], phi))
         data = sg.lfilter(lpfilt, 1, data)
-
         #Remove filter transient
         data = data[coeffs+1:]
+
     #Heuristic window to get nice plots
     base_window_length = int(overlap_fraction*nfft)
     f, axarr = plot.subplots(2)
@@ -109,8 +121,9 @@ def run_kurtosis(data, nfft, decimate_by, overlap_fraction, info="", whiten=Fals
     axarr[0].set_ylabel(yaxislabel)
     rolling_kurtosis = pd.rolling_kurt(spec_dframe, window_length, axis=1).fillna()
     lower,upper = get_adjusted_lims(rolling_kurtosis, num_bins=10000)
-    #Remove 0:nfft*overlap_fraction column values to adjust for plotting offest
-    kurtax = axarr[1].imshow(rolling_kurtosis.values[:, int(nfft*overlap_fraction):],
+    #Remove 0:nfft*overlap_fraction column values to adjust for plotting offest and get cleaner looking plots
+    #kurtax = axarr[1].imshow(rolling_kurtosis.values[:, int(nfft*overlap_fraction):],
+    kurtax = axarr[1].imshow(rolling_kurtosis,
             vmin=lower,
             vmax=upper,
             cmap=cm.gray,
@@ -165,7 +178,7 @@ except SystemExit:
 
 nfft=args.nfft
 decimate_by = args.decimate
-overlap_fraction = .66
+overlap_fraction = .85
 if args.filename[-4:] == ".wav":
     import wave, struct
     waveFile = wave.open(args.filename, 'r')
@@ -182,6 +195,7 @@ if args.filename[-4:] == ".wav":
     run_kurtosis(data, nfft, decimate_by, overlap_fraction,
             info=args.filename.split("/")[-1].split(".")[0],
             save_plot=args.save,
+            whiten=args.whiten,
             twosided=args.twosided)
     #sr, data = wavfile.read(args.filename)
     #data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
@@ -208,6 +222,7 @@ elif args.filename[-4:] == ".asc":
         run_kurtosis(all_sensor_data[i], nfft, decimate_by, overlap_fraction,
                 info=i+rpms[tag/4]+loads[tag%4],
                 save_plot=args.save,
+                whiten=args.whiten,
                 twosided=args.twosided)
 
     #data = all_sensor_data['Mic[Pa]']
