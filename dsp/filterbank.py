@@ -6,6 +6,7 @@ import numpy as np
 import argparse
 import sys
 import matplotlib.pyplot as plot
+from matplotlib import cm
 import scipy.signal as sg
 
 class EndpointsAction(argparse.Action):
@@ -32,12 +33,11 @@ def gen_complex_chirp(fs=44100):
     t = np.arange(0,t1,t1/float(fs))
     return np.exp(2j*np.pi*(.5*beta*(t**2) + f0*t))
 
-def show_filter_response(filt, title=None):
+def show_filter_response(filt, axarr, title=None):
     w,h = sg.freqz(filt)
-    plot.plot(w/max(w), np.abs(h))
+    axarr.plot(w/max(w), np.abs(h))
     if title != None:
-        plot.title(title)
-    plot.show()
+        axarr.set_title(title)
 
 def show_specgram(input_data, fft_size=512, one_sided=False, title=None):
     split = "onesided" if one_sided else "twosided"
@@ -46,11 +46,10 @@ def show_specgram(input_data, fft_size=512, one_sided=False, title=None):
         plot.title(title)
     plot.show()
 
-def basic_single_filter(input_data, show_filter=True):
+def basic_single_filter(input_data):
     filt = prototype_filter()
-    show_filter_response(filt, title="Basic lowpass filter response")
     filtered_data = sg.lfilter(filt, 1, input_data)
-    return filtered_data
+    return filtered_data, filt
 
 def polyphase_single_filter(input_data, decimate_by, filt):
     if len(input_data) % decimate_by != 0:
@@ -100,17 +99,39 @@ if __name__=="__main__":
         #data /= 32768
     else:
         data = gen_complex_chirp()
+        data += .01*np.random.randn(len(data))
 
     def prototype_filter(num_taps=DECIMATE_BY*FILT_CONST, normalized_cutoff=1./(DECIMATE_BY+.1*DECIMATE_BY)):
         return sg.firwin(num_taps, normalized_cutoff)
 
-    show_specgram(data, title="Frequency plot of initial data")
-    basic = basic_single_filter(data)
-    show_specgram(basic, title="Frequency plot of filtered data using standard filtering")
+    f1, axarr1 = plot.subplots(5)
+    NFFT=512
+    SIDES="twosided"
+    ASPECT="normal"
+    CMAP=cm.gray
+    ORIGIN="lower"
+    plot.tight_layout()
+    pxx, freqs, bins, im = axarr1[0].specgram(data, NFFT, sides=SIDES)
+    #This is necessary to eliminate blank space at the end of regular matplotlib specgram calls? If anyone knows a better fix, let me know
+    axarr1[0].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN)
+    axarr1[0].set_title("Specgram of original data")
+    basic, filt = basic_single_filter(data)
+    show_filter_response(filt, axarr1[1], title="Lowpass filter response")
+    pxx, freqs, bins, im = axarr1[2].specgram(basic, NFFT, sides=SIDES)
+    axarr1[2].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN)
+    axarr1[2].set_title("Filtered")
     decimated = basic[::DECIMATE_BY]
-    show_specgram(decimated, title="Frequency plot of filtered, then decimated data")
+    pxx, freqs, bins, im = axarr1[3].specgram(decimated, NFFT, sides=SIDES)
+    axarr1[3].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN)
+    axarr1[3].set_title("Filtered, then decimated")
     decimated_filtered = polyphase_single_filter(data, DECIMATE_BY, prototype_filter())
-    show_specgram(decimated_filtered, title="Frequency plot of polyphase filtered data")
+    pxx, freqs, bins, im = axarr1[4].specgram(decimated_filtered, NFFT, sides=SIDES)
+    axarr1[4].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN)
+    axarr1[4].set_title("Polyphase filtered data")
+    f2, axarr2 = plot.subplots(DECIMATE_BY)
     decimated_filterbank = polyphase_analysis(data, DECIMATE_BY, prototype_filter())
     for i in range(decimated_filterbank.shape[0]):
-        show_specgram(decimated_filterbank[i], title="Frequency plot of output " + `i` + " from filterbank")
+        pxx, freqs, bins, im = axarr2[i].specgram(decimated_filterbank[i], NFFT)
+        axarr2[i].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN)
+        axarr2[i].set_title("Filterbank output " + `i`)
+    plot.show()
