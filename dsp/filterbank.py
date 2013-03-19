@@ -7,7 +7,9 @@ import argparse
 import sys
 import matplotlib.pyplot as plot
 from matplotlib import cm
+from matplotlib.ticker import LinearLocator
 import scipy.signal as sg
+import copy
 
 class EndpointsAction(argparse.Action):
     def __call__(self, parser, args, values, option = None):
@@ -37,6 +39,8 @@ def show_filter_response(filt, axarr, title=None):
     axarr.plot(w/max(w), np.abs(h))
     if title != None:
         axarr.set_title(title)
+    axarr.set_xlabel("Normalized frequency")
+    axarr.set_ylabel("Gain")
 
 def show_specgram(input_data, fft_size=512, one_sided=False, title=None):
     split = "onesided" if one_sided else "twosided"
@@ -89,6 +93,7 @@ if __name__=="__main__":
         sys.exit()
 
     if args.filename[-4:] == ".wav":
+        print "WARNING: Plot values not guaranteed correct for .wav file input!"
         sr, data = wavfile.read(args.filename)
         data = np.asarray(data, dtype=np.complex64)[::args.endpoints[2]]
         if args.endpoints[1] == None:
@@ -110,38 +115,67 @@ if __name__=="__main__":
     CMAP=cm.gray
     ORIGIN="lower"
     INTERPOLATION="bicubic"
-    XAXIS="BLAHX"
-    YAXIS="BLAHY"
+    NOVERLAP=1
+    XAXIS="Time (seconds)"
+    YAXIS="Normalized Frequency"
+    NXTICKS = 5
+    NYTICKS = 5
+    FS = 44100
+
+    def format_axes(ax, freq_zoom=1, freq_bank=None):
+        ax.set_xlabel(XAXIS)
+        xmin, xmax = ax.get_xlim()
+        xlabels = [x for x in np.linspace(0,1,NXTICKS)]
+        ax.set_xlim(0, xmax)
+        ax.xaxis.set_major_locator(LinearLocator(NXTICKS))
+        ax.set_xticklabels(xlabels)
+
+        ax.set_ylabel(YAXIS)
+        ymin, ymax = ax.get_ylim()
+        #-.49999 to keep it from displaying as -0.00
+        #All other if statement values are to compensate for filter bank ordering
+        ylabels = [float(y)/freq_zoom + (0 if freq_bank == None else freq_bank*(float(1.)/freq_zoom) - (1. if freq_bank > DECIMATE_BY/2 else 0))
+                   for y in np.linspace(-.5,.5,NYTICKS)]
+        ax.set_ylim(0, ymax)
+        ylabels = ["%.2f" % y for y in ylabels]
+        ax.yaxis.set_major_locator(LinearLocator(NYTICKS))
+        ax.set_yticklabels(ylabels)
 
     f1, axarr1 = plot.subplots(5)
     plot.tight_layout()
-    pxx, freqs, bins, im = axarr1[0].specgram(data, NFFT, sides=SIDES)
+    pxx, freqs, bins, im = axarr1[0].specgram(data, NFFT, noverlap=NOVERLAP)
     #This specgram, imshow runaround seems to be necessary to eliminate blank space at the end of regular matplotlib specgram calls?
     #If anyone knows a better fix, let me know
     axarr1[0].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN, interpolation=INTERPOLATION)
     axarr1[0].set_title("Specgram of original data")
+    format_axes(axarr1[0])
 
     basic, filt = basic_single_filter(data)
     show_filter_response(filt, axarr1[1], title="Lowpass filter response")
 
-    pxx, freqs, bins, im = axarr1[2].specgram(basic, NFFT, sides=SIDES)
+    pxx, freqs, bins, im = axarr1[2].specgram(basic, NFFT, noverlap=NOVERLAP)
     axarr1[2].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN, interpolation=INTERPOLATION)
     axarr1[2].set_title("Filtered")
+    format_axes(axarr1[2])
 
     decimated = basic[::DECIMATE_BY]
-    pxx, freqs, bins, im = axarr1[3].specgram(decimated, NFFT, sides=SIDES)
+    pxx, freqs, bins, im = axarr1[3].specgram(decimated, NFFT, noverlap=NOVERLAP)
     axarr1[3].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN, interpolation=INTERPOLATION)
     axarr1[3].set_title("Filtered, then decimated")
+    format_axes(axarr1[3], freq_zoom=DECIMATE_BY)
 
     decimated_filtered = polyphase_single_filter(data, DECIMATE_BY, prototype_filter())
-    pxx, freqs, bins, im = axarr1[4].specgram(decimated_filtered, NFFT, sides=SIDES)
+    pxx, freqs, bins, im = axarr1[4].specgram(decimated_filtered, NFFT, noverlap=NOVERLAP)
     axarr1[4].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN, interpolation=INTERPOLATION)
     axarr1[4].set_title("Polyphase filtered data")
+    format_axes(axarr1[4], freq_zoom=DECIMATE_BY)
 
     f2, axarr2 = plot.subplots(DECIMATE_BY)
+    plot.tight_layout()
     decimated_filterbank = polyphase_analysis(data, DECIMATE_BY, prototype_filter())
     for i in range(decimated_filterbank.shape[0]):
         pxx, freqs, bins, im = axarr2[i].specgram(decimated_filterbank[i], NFFT)
         axarr2[i].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN, interpolation=INTERPOLATION)
         axarr2[i].set_title("Filterbank output " + `i`)
+        format_axes(axarr2[i], freq_zoom=DECIMATE_BY, freq_bank=i)
     plot.show()
