@@ -21,7 +21,6 @@ class EndpointsAction(argparse.Action):
 parser = argparse.ArgumentParser(description="Apply filter tutorial to input data")
 parser.add_argument("-f", "--filename", dest="filename", default=".noexist", help="Optional WAV file to be processed, default generates a 1 sec full range complex chirp to filter")
 parser.add_argument("-e", "--endpoints", dest="endpoints", default=[0,None, 1], action=EndpointsAction, nargs="*", help='Start and stop endpoints for data, default will try to process the whole file')
-parser.add_argument("-v", "--verbose", dest="verbose", action="count", help='Verbosity, -v for verbose or -vv for very verbose')
 
 DECIMATE_BY = 3
 FILT_CONST = 50
@@ -98,40 +97,51 @@ if __name__=="__main__":
             data = data[args.endpoints[0]:args.endpoints[1]]
         #data /= 32768
     else:
+        #Generate chirp and add noise - fully synthetic chirp has strange looking plots
         data = gen_complex_chirp()
         data += .01*np.random.randn(len(data))
 
     def prototype_filter(num_taps=DECIMATE_BY*FILT_CONST, normalized_cutoff=1./(DECIMATE_BY+.1*DECIMATE_BY)):
         return sg.firwin(num_taps, normalized_cutoff)
 
-    f1, axarr1 = plot.subplots(5)
     NFFT=512
     SIDES="twosided"
     ASPECT="normal"
     CMAP=cm.gray
     ORIGIN="lower"
+    INTERPOLATION="bicubic"
+    XAXIS="BLAHX"
+    YAXIS="BLAHY"
+
+    f1, axarr1 = plot.subplots(5)
     plot.tight_layout()
     pxx, freqs, bins, im = axarr1[0].specgram(data, NFFT, sides=SIDES)
-    #This is necessary to eliminate blank space at the end of regular matplotlib specgram calls? If anyone knows a better fix, let me know
-    axarr1[0].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN)
+    #This specgram, imshow runaround seems to be necessary to eliminate blank space at the end of regular matplotlib specgram calls?
+    #If anyone knows a better fix, let me know
+    axarr1[0].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN, interpolation=INTERPOLATION)
     axarr1[0].set_title("Specgram of original data")
+
     basic, filt = basic_single_filter(data)
     show_filter_response(filt, axarr1[1], title="Lowpass filter response")
+
     pxx, freqs, bins, im = axarr1[2].specgram(basic, NFFT, sides=SIDES)
-    axarr1[2].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN)
+    axarr1[2].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN, interpolation=INTERPOLATION)
     axarr1[2].set_title("Filtered")
+
     decimated = basic[::DECIMATE_BY]
     pxx, freqs, bins, im = axarr1[3].specgram(decimated, NFFT, sides=SIDES)
-    axarr1[3].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN)
+    axarr1[3].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN, interpolation=INTERPOLATION)
     axarr1[3].set_title("Filtered, then decimated")
+
     decimated_filtered = polyphase_single_filter(data, DECIMATE_BY, prototype_filter())
     pxx, freqs, bins, im = axarr1[4].specgram(decimated_filtered, NFFT, sides=SIDES)
-    axarr1[4].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN)
+    axarr1[4].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN, interpolation=INTERPOLATION)
     axarr1[4].set_title("Polyphase filtered data")
+
     f2, axarr2 = plot.subplots(DECIMATE_BY)
     decimated_filterbank = polyphase_analysis(data, DECIMATE_BY, prototype_filter())
     for i in range(decimated_filterbank.shape[0]):
         pxx, freqs, bins, im = axarr2[i].specgram(decimated_filterbank[i], NFFT)
-        axarr2[i].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN)
+        axarr2[i].imshow(np.ma.log(abs(pxx)), aspect=ASPECT, cmap=CMAP, origin=ORIGIN, interpolation=INTERPOLATION)
         axarr2[i].set_title("Filterbank output " + `i`)
     plot.show()
