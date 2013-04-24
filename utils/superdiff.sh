@@ -51,7 +51,7 @@ if [[ $# -lt 2 ]];then
 fi
 
 SSH_CALL_BASE="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "
-TEMP_EXT="-superdiff"
+TEMP_EXT=".superdiff"
 DIFF_FILES=""
 ITR=1
 for i in $1 $2; do
@@ -64,7 +64,7 @@ for i in $1 $2; do
         FILENAME=$(get_filename $IP_AND_FILE)
         IP_ADDR=$(get_ip $IP_AND_FILE)
         CAT_CMD="cat $FILENAME"
-        EXPECT_OUTFILE=$FILENAME$TEMP_EXT.$ITR
+        EXPECT_OUTFILE=${FILENAME##*/}$TEMP_EXT.$ITR
         /usr/bin/expect << EOF > $EXPECT_OUTFILE 
 spawn $SSH_CALL_BASE$USERNAME@$IP_ADDR
 expect -re {.*?assword:.*} 
@@ -75,17 +75,20 @@ expect -re {.*[#$] $}
 exit
 EOF
         sed -i '$d' $EXPECT_OUTFILE
-        sed -i "1,/$CAT_CMD/d" $EXPECT_OUTFILE
+        SUPERDIFF_TAG="SUPERDIFF"
+        sed -i "1s/^/$SUPERDIFF_TAG/" $EXPECT_OUTFILE
+        #Use end tag to avoid issues with / in path
+        sed -i "/$SUPERDIFF_TAG/,/${FILENAME##*/}/d" $EXPECT_OUTFILE
         #Get rid of non-standard newlines
-        tr -d '\r' $EXPECT_OUTFILE
-        DIFF_FILES+=$EXPECT_OUTFILE
-        DIFF_FILES+=" "
+        tr -d '\r' < $EXPECT_OUTFILE > stmp.superdiff
+        mv stmp.superdiff $EXPECT_OUTFILE
+        DIFF_FILES+=" $(echo $EXPECT_OUTFILE)"
     else
         echo "$i seems to be a local file"
         FILENAME=$i
-        LOCAL_OUTFILE=$FILENAME$TEMP_EXT.$ITR
+        LOCAL_OUTFILE=${FILENAME##*/}$TEMP_EXT.$ITR
         ln -s $FILENAME $LOCAL_OUTFILE
-        DIFF_FILES+=$LOCAL_OUTFILE
+        DIFF_FILES+=" $(echo $LOCAL_OUTFILE)"
     fi
     ITR=$((ITR + 1))
 done
@@ -95,4 +98,5 @@ if [[ -z $(diff $DIFF_FILES) ]];then
     rm *$TEMP_EXT.[1-9]
 else
     vimdiff $DIFF_FILES
+    rm *$TEMP_EXT.[1-9]
 fi
