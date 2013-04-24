@@ -15,7 +15,23 @@ RPASS=$2
 RNAME=$3
 RDIR=${4%/}
 LDIR=${5%/}
-for f in $(ssh $RUSER@$RNAME "ls /usr/hfw/etc/"); do 
-    bash -x superdiff.sh $RUSER?$RPASS@$RNAME:$RDIR/$f $LDIR/$f 
+#Secondary directory
+SDIR=$6
+for f in $(ssh $RUSER@$RNAME "ls $RDIR"); do 
+    LPATH=$LDIR/$f
+    RPATH=$RDIR/$f
+    if [[ ! -f "$LPATH" ]]; then
+        if [[ ! -z $SDIR ]]; then
+            LPATH=$SDIR/$f
+            if [[ ! -f "$LPATH" ]]; then
+                echo "ERROR: $f does not exist in $LDIR or $SDIR!"
+                continue
+            fi
+        else
+                echo "ERROR: $f does not exist in $LDIR!" 
+                continue
+        fi
+    fi
+    bash superdiff.sh $RUSER?$RPASS@$RNAME:$RPATH $LPATH 
 done
 

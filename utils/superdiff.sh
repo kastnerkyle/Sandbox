@@ -77,7 +77,7 @@ DIFF_FILES=""
 ITR=1
 for i in $1 $2; do
     if [[ $(local_or_remote $i) -eq 1 ]]; then
-        echo "$i seems to be a remote file"
+        #echo "$i seems to be a remote file"
         USERNAME_AND_PASSWORD=$(get_username_and_password $i) 
         IP_AND_FILE=$(get_ip_and_file $i)
         USERNAME=$(get_username $USERNAME_AND_PASSWORD)
@@ -89,7 +89,7 @@ for i in $1 $2; do
         get_remote $EXPECT_OUTFILE
         DIFF_FILES+=" $(echo $EXPECT_OUTFILE)"
     else
-        echo "$i seems to be a local file"
+        #echo "$i seems to be a local file"
         FILENAME=$i
         if [[ ! -f $FILENAME ]]; then
             echo "Local file $FILENAME does not exist!"
