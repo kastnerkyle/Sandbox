@@ -45,6 +45,27 @@ function get_filename {
     echo $FILENAME
 }
 
+function get_remote {
+OUTFILE=$1
+        /usr/bin/expect << EOF > $OUTFILE 
+spawn $SSH_CALL_BASE$USERNAME@$IP_ADDR
+expect -re {.*?assword:.*} 
+send $PASSWORD\n
+expect -re {.*[#$] $}
+send "$CAT_CMD\n"
+expect -re {.*[#$] $} 
+exit
+EOF
+        sed -i '$d' $OUTFILE
+        SUPERDIFF_TAG="SUPERDIFF"
+        sed -i "1s/^/$SUPERDIFF_TAG/" $OUTFILE
+        #Use end tag to avoid issues with / in path
+        sed -i "/$SUPERDIFF_TAG/,/${FILENAME##*/}/d" $OUTFILE
+        #Get rid of non-standard newlines
+        tr -d '\r' < $OUTFILE > stmp.superdiff
+        mv stmp.superdiff $OUTFILE
+}
+
 if [[ $# -lt 2 ]];then
     usage
     exit 1
@@ -65,27 +86,15 @@ for i in $1 $2; do
         IP_ADDR=$(get_ip $IP_AND_FILE)
         CAT_CMD="cat $FILENAME"
         EXPECT_OUTFILE=${FILENAME##*/}$TEMP_EXT.$ITR
-        /usr/bin/expect << EOF > $EXPECT_OUTFILE 
-spawn $SSH_CALL_BASE$USERNAME@$IP_ADDR
-expect -re {.*?assword:.*} 
-send $PASSWORD\n
-expect -re {.*[#$] $}
-send "$CAT_CMD\n"
-expect -re {.*[#$] $} 
-exit
-EOF
-        sed -i '$d' $EXPECT_OUTFILE
-        SUPERDIFF_TAG="SUPERDIFF"
-        sed -i "1s/^/$SUPERDIFF_TAG/" $EXPECT_OUTFILE
-        #Use end tag to avoid issues with / in path
-        sed -i "/$SUPERDIFF_TAG/,/${FILENAME##*/}/d" $EXPECT_OUTFILE
-        #Get rid of non-standard newlines
-        tr -d '\r' < $EXPECT_OUTFILE > stmp.superdiff
-        mv stmp.superdiff $EXPECT_OUTFILE
+        get_remote $EXPECT_OUTFILE
         DIFF_FILES+=" $(echo $EXPECT_OUTFILE)"
     else
         echo "$i seems to be a local file"
         FILENAME=$i
+        if [[ ! -f $FILENAME ]]; then
+            echo "Local file $FILENAME does not exist!"
+            exit 1 
+        fi
         LOCAL_OUTFILE=${FILENAME##*/}$TEMP_EXT.$ITR
         ln -s $FILENAME $LOCAL_OUTFILE
         DIFF_FILES+=" $(echo $LOCAL_OUTFILE)"
