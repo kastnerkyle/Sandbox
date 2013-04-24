@@ -93,6 +93,7 @@ for i in $1 $2; do
         FILENAME=$i
         if [[ ! -f $FILENAME ]]; then
             echo "Local file $FILENAME does not exist!"
+            rm *$TEMP_EXT.[1-9]
             exit 1 
         fi
         LOCAL_OUTFILE=${FILENAME##*/}$TEMP_EXT.$ITR
