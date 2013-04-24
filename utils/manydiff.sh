@@ -24,11 +24,11 @@ for f in $(ssh $RUSER@$RNAME "ls $RDIR"); do
         if [[ ! -z $SDIR ]]; then
             LPATH=$SDIR/$f
             if [[ ! -f "$LPATH" ]]; then
-                echo "ERROR: $f does not exist in $LDIR or $SDIR!"
+                #echo "ERROR: $f does not exist in $LDIR or $SDIR!"
                 continue
             fi
         else
-                echo "ERROR: $f does not exist in $LDIR!" 
+                #echo "ERROR: $f does not exist in $LDIR!" 
                 continue
         fi
     fi

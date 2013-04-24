@@ -85,7 +85,7 @@ for i in $1 $2; do
         FILENAME=$(get_filename $IP_AND_FILE)
         IP_ADDR=$(get_ip $IP_AND_FILE)
         CAT_CMD="cat $FILENAME"
-        EXPECT_OUTFILE=${FILENAME##*/}$TEMP_EXT.$ITR
+        EXPECT_OUTFILE=${FILENAME##*/}$TEMP_EXT.remote.$ITR
         get_remote $EXPECT_OUTFILE
         DIFF_FILES+=" $(echo $EXPECT_OUTFILE)"
     else
@@ -93,10 +93,10 @@ for i in $1 $2; do
         FILENAME=$i
         if [[ ! -f $FILENAME ]]; then
             echo "Local file $FILENAME does not exist!"
-            rm *$TEMP_EXT.[1-9]
+            rm *$TEMP_EXT.*.[1-9]
             exit 1 
         fi
-        LOCAL_OUTFILE=${FILENAME##*/}$TEMP_EXT.$ITR
+        LOCAL_OUTFILE=${FILENAME##*/}$TEMP_EXT.local.$ITR
         ln -s $FILENAME $LOCAL_OUTFILE
         DIFF_FILES+=" $(echo $LOCAL_OUTFILE)"
     fi
@@ -105,8 +105,8 @@ done
 echo "Preparing to diff files $DIFF_FILES"
 if [[ -z $(diff $DIFF_FILES) ]];then
     echo "These files are identical"
-    rm *$TEMP_EXT.[1-9]
+    rm *$TEMP_EXT.*.[1-9]
 else
     vimdiff $DIFF_FILES
-    rm *$TEMP_EXT.[1-9]
+    rm *$TEMP_EXT.*.[1-9]
 fi
