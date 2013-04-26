@@ -29,7 +29,7 @@ plot.imshow(A_, cmap=cm.gray)
 plot.show()
 
 #Sparse matrix setup
-sparseness = .5
+sparseness = .9
 A = lena()
 for i in xrange(len(A)):
     for j in xrange(len(A[i])):
@@ -47,26 +47,30 @@ plot.imshow(A_, cmap=cm.gray)
 plot.show()
 
 #Sparse matrix, gradient descent example
-iterations = itr = 10
-learning_rate = a = .0002
-regularization_rate = b = .02
+iterations = itr = 30
+learning_rate = a = .001
+regularization_rate = b = .1
 N = len(A)
 M = len(A[0])
 P = np.random.randn(N,K)
 Q = np.random.randn(K,M)
+import random
+randomize = True
 for r in xrange(itr):
     e = 0
-    for i in xrange(len(A)):
-        for j in xrange(len(A[i])):
+    r1 = range(len(A))
+    random.shuffle(r1) if randomize else True
+    for i in r1:
+        r2 = range(len(A[i]))
+        random.shuffle(r2) if randomize else True
+        for j in r2:
             if A[i][j] > 0:
                 eij = A[i][j] - np.dot(P[i,:],Q[:,j])
-                e = e + (A[i][j] - np.dot(P[i,:],Q[:,j]))**2
+                e += (A[i][j] - np.dot(P[i,:],Q[:,j]))**2
                 for k in xrange(K):
-                    P[i][k] = P[i][k] + a * (2 * eij * Q[k][j] - b * P[i][k])
-                    Q[k][j] = Q[k][j] + a * (2 * eij * P[i][k] - b * Q[k][j])
-                    e = e + (b/2) * (P[i][k]**2 + Q[k][j]**2)
-    if e < 0.001:
-        break
+                    P[i][k] = P[i][k] + a * (eij * Q[k][j] - b * P[i][k])
+                    Q[k][j] = Q[k][j] + a * (eij * P[i][k] - b * Q[k][j])
+    print "Iteration " + `r` + ": RMSE = " + `e`
 
 A_ = np.dot(P,Q)
 plot.imshow(A, cmap=cm.gray)
