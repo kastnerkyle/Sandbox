@@ -27,12 +27,11 @@ def lowrank_SVD(input_matrix, approx=50):
 def PMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularization_rate=.1, randomize=True, print_status=True):
     A = input_matrix
     K = approx
+    A = input_matrix
+    K = approx
     itr = iterations
     a = learning_rate
     b = regularization_rate
-    iterations = itr = 30
-    learning_rate = a = .001
-    regularization_rate = b = .1
     N = len(A)
     M = len(A[0])
     U = np.random.randn(N,K)
@@ -91,15 +90,15 @@ def constrained_PMF(input_matrix, approx=50, iterations=30, learning_rate=.001, 
                     denom = 1
                     for k in xrange(K):
                         if A[i][k] > 0:
-                            num += W[i][k]
+                            num += W[k,:]
                             denom += 1.
                     s = num/denom
-                    eij = (A[i][j] - np.dot(Y[i,:] + s,V[:,j]))
+                    eij = A[i][j] - np.dot(Y[i,:] + s,V[:,j])
                     e += eij**2
                     for k in xrange(K):
-                        Y[i][k] = Y[i][k] + a * (eij*V[k,j] + b*Y[i][k])
-                        W[i][k] = W[i][k] + a * (eij*V[k,j] + b*W[i][k])
-                        V[k][j] = V[k][j] + a * (eij*(Y[i,k]+s) + b*V[k][j])
+                        Y[i][k] = Y[i][k] + a * (eij*V[k,j] - b*Y[i][k])
+                        W[i][k] = W[i][k] + a * (eij*V[k,j] - b*W[i][k])
+                        V[k][j] = V[k][j] + a * (eij*(Y[i,k]+W[i,k]) - b*V[k][j])
         RMSE.append(e)
         if print_status:
             print "Iteration " + `r` + ": RMSE " + `e`
@@ -110,14 +109,15 @@ def constrained_PMF(input_matrix, approx=50, iterations=30, learning_rate=.001, 
 #From https://gist.github.com/thearn/5424219
 #Full matrix SVD, low rank approximation
 approx = K = 50
+iterations = I = 10
 A = lena()
-A_,RMSE=lowrank_SVD(A,K)
+A_,RMSE=lowrank_SVD(A,approx=K)
 plot.figure()
 plot.title("Low Rank SVD (full matrix) RMSE = " + `RMSE[-1]`)
 plot.imshow(A_, cmap=cm.gray)
 
 #Sparse matrix setup
-sparseness = .8
+sparseness = .85
 A = lena()
 for i in xrange(len(A)):
     for j in xrange(len(A[i])):
@@ -130,19 +130,19 @@ plot.title("Sparse Lena")
 plot.imshow(A, cmap=cm.gray)
 
 #Sparse matrix, regular SVD example, low rank approximation
-A_,RMSE=lowrank_SVD(A,K)
+A_,RMSE=lowrank_SVD(A,approx=K)
 plot.figure()
 plot.title("Low Rank SVD, RMSE = " + `RMSE[-1]`)
 plot.imshow(A_, cmap=cm.gray)
 
 #Sparse matrix, gradient descent example
-A_,RMSE=PMF(A,K)
+A_,RMSE=PMF(A,approx=K,iterations=I)
 plot.figure()
 plot.title("PMF, RMSE = " + `RMSE[-1]`)
 plot.imshow(A_, cmap=cm.gray)
 
 #Sparse matrix, constrained gradient descent example
-A_,RMSE=constrained_PMF(A,K)
+A_,RMSE=constrained_PMF(A,approx=K,iterations=I)
 plot.figure()
 plot.title("Constrained PMF, RMSE = " + `RMSE[-1]`)
 plot.imshow(A_, cmap=cm.gray)
