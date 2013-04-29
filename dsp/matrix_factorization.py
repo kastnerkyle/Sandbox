@@ -113,36 +113,37 @@ approx = K = 50
 A = lena()
 A_,RMSE=lowrank_SVD(A,K)
 plot.figure()
-plot.imshow(A, cmap=cm.gray)
-plot.figure()
+plot.title("Low Rank SVD (full matrix) RMSE = " + `RMSE[-1]`)
 plot.imshow(A_, cmap=cm.gray)
 
 #Sparse matrix setup
-sparseness = .95
+sparseness = .8
 A = lena()
 for i in xrange(len(A)):
     for j in xrange(len(A[i])):
         if np.random.rand() < sparseness:
             A[i][j] = 0.
 
+#Sparse lena
+plot.figure()
+plot.title("Sparse Lena")
+plot.imshow(A, cmap=cm.gray)
+
 #Sparse matrix, regular SVD example, low rank approximation
 A_,RMSE=lowrank_SVD(A,K)
 plot.figure()
-plot.imshow(A, cmap=cm.gray)
-plot.figure()
+plot.title("Low Rank SVD, RMSE = " + `RMSE[-1]`)
 plot.imshow(A_, cmap=cm.gray)
 
 #Sparse matrix, gradient descent example
 A_,RMSE=PMF(A,K)
 plot.figure()
-plot.imshow(A, cmap=cm.gray)
-plot.figure()
+plot.title("PMF, RMSE = " + `RMSE[-1]`)
 plot.imshow(A_, cmap=cm.gray)
 
 #Sparse matrix, constrained gradient descent example
 A_,RMSE=constrained_PMF(A,K)
 plot.figure()
-plot.imshow(A, cmap=cm.gray)
-plot.figure()
+plot.title("Constrained PMF, RMSE = " + `RMSE[-1]`)
 plot.imshow(A_, cmap=cm.gray)
 plot.show()
