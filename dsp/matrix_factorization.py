@@ -89,19 +89,12 @@ def KPMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularizat
         #for k in xrange(K):
         #    V[k,:] = V[k,:] + a*(np.dot(U[:,k],np.dot(I,np.dot(U[:,k],V[k,:])-A))-b*V[k,:])
         #    U[:,k] = U[:,k] + a*(np.dot(V[k,:],np.dot(I,np.dot(U[:,k],V[k,:])-A))-b*U[:,k])
-        #e = 0
         e = A - np.dot(U,V)
-        r1 = range(len(A))
-        random.shuffle(r1) if randomize else True
-        for i in r1:
-            r2 = range(len(A[i]))
-            random.shuffle(r2) if randomize else True
-            for j in r2:
-                if A[i][j] > 0:
-                    #e += eij**2
-                    for k in xrange(K):
-                        U[i,k] = U[i,k] + a * (e[i,j] * V[k,j] - b * U[i,k])
-                        V[k,j] = V[k,j] + a * (e[i,j] * U[i,k] - b * V[k,j])
+        I = A > 0
+        for i in range(A.shape[0]):
+            for j in range(A.shape[1]):
+                U[i,:] = I[i,j]*(U[i,:] + a*(e[i,j]*V[:,j] - b*U[i,:]))
+                V[:,j] = I[i,j]*(V[:,j] + a*(e[i,j]*U[i,:] - b*V[:,j]))
         RMSE.append(np.sum(np.sum(e))**2)
         if print_status:
             print "Iteration " + `r` + ": RMSE " + `e`
