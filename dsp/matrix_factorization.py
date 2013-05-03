@@ -42,6 +42,11 @@ def PMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularizati
     if print_status:
         print "Starting PMF"
     for r in xrange(itr):
+        #Current failed attempt at matrix version
+        #I = A > 0
+        #for k in xrange(K):
+        #    V[k,:] = V[k,:] + a*(np.dot(U[:,k],np.dot(I,np.dot(U[:,k],V[k,:])-A))-b*V[k,:])
+        #    U[:,k] = U[:,k] + a*(np.dot(V[k,:],np.dot(I,np.dot(U[:,k],V[k,:])-A))-b*U[:,k])
         e = 0
         r1 = range(len(A))
         random.shuffle(r1) if randomize else True
@@ -56,6 +61,48 @@ def PMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularizati
                         U[i][k] = U[i][k] + a * (eij * V[k][j] - b * U[i][k])
                         V[k][j] = V[k][j] + a * (eij * U[i][k] - b * V[k][j])
         RMSE.append(e)
+        if print_status:
+            print "Iteration " + `r` + ": RMSE " + `e`
+    A_ = np.dot(U,V)
+    return A_,RMSE
+
+def KPMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularization_rate=.1, randomize=True, print_status=True):
+    A = input_matrix
+    K = approx
+    A = input_matrix
+    K = approx
+    itr = iterations
+    a = learning_rate
+    b = regularization_rate
+    N = len(A)
+    M = len(A[0])
+    U = np.random.randn(N,K)
+    V = np.random.randn(K,M)
+    if randomize:
+        import random
+    RMSE=[]
+    if print_status:
+        print "Starting PMF"
+    for r in xrange(itr):
+        #Current failed attempt at matrix version
+        #I = A > 0
+        #for k in xrange(K):
+        #    V[k,:] = V[k,:] + a*(np.dot(U[:,k],np.dot(I,np.dot(U[:,k],V[k,:])-A))-b*V[k,:])
+        #    U[:,k] = U[:,k] + a*(np.dot(V[k,:],np.dot(I,np.dot(U[:,k],V[k,:])-A))-b*U[:,k])
+        #e = 0
+        e = A - np.dot(U,V)
+        r1 = range(len(A))
+        random.shuffle(r1) if randomize else True
+        for i in r1:
+            r2 = range(len(A[i]))
+            random.shuffle(r2) if randomize else True
+            for j in r2:
+                if A[i][j] > 0:
+                    #e += eij**2
+                    for k in xrange(K):
+                        U[i,k] = U[i,k] + a * (e[i,j] * V[k,j] - b * U[i,k])
+                        V[k,j] = V[k,j] + a * (e[i,j] * U[i,k] - b * V[k,j])
+        RMSE.append(np.sum(np.sum(e))**2)
         if print_status:
             print "Iteration " + `r` + ": RMSE " + `e`
     A_ = np.dot(U,V)
@@ -85,15 +132,13 @@ def constrained_PMF(input_matrix, approx=50, iterations=30, learning_rate=.001, 
             r2 = range(M)
             random.shuffle(r2) if randomize else True
             for j in r2:
-                if A[i][j] > 0:
-                    num = 0
-                    denom = 1
+                if A[i,j] > 0:
+                    div = float(sum(A[i,:] > 0))
                     for k in xrange(K):
-                        if A[i][k] > 0:
-                            num += W[k,:]
-                            denom += 1.
-                    s = num/denom
-                    eij = A[i][j] - np.dot(Y[i,:] + s,V[:,j])
+                        n = 0.
+                        if A[i,k] > 0:
+                            n += W[k,:]/div
+                    eij = A[i][j] - np.dot(Y[i,:] + n,V[:,j])
                     e += eij**2
                     for k in xrange(K):
                         Y[i][k] = Y[i][k] + a * (eij*V[k,j] - b*Y[i][k])
@@ -140,10 +185,11 @@ A_,RMSE=PMF(A,approx=K,iterations=I)
 plot.figure()
 plot.title("PMF, RMSE = " + `RMSE[-1]`)
 plot.imshow(A_, cmap=cm.gray)
+plot.show()
 
 #Sparse matrix, constrained gradient descent example
-A_,RMSE=constrained_PMF(A,approx=K,iterations=I)
-plot.figure()
-plot.title("Constrained PMF, RMSE = " + `RMSE[-1]`)
-plot.imshow(A_, cmap=cm.gray)
-plot.show()
+#A_,RMSE=constrained_PMF(A,approx=K,iterations=I)
+#plot.figure()
+#plot.title("Constrained PMF, RMSE = " + `RMSE[-1]`)
+#plot.imshow(A_, cmap=cm.gray)
+#plot.show()
