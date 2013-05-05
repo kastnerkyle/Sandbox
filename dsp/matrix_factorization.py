@@ -26,7 +26,6 @@ def PMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularizati
     Z = np.asarray(A > 0,dtype=np.int)
     A1d = np.ravel(A)
     mean = np.mean(A1d)
-    scale = np.max(A1d)-np.min(A1d)
     A = A-mean
     K = approx
     R = itr = iterations
@@ -36,58 +35,20 @@ def PMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularizati
     M = A.shape[1]
     U = np.random.randn(N,K)
     V = np.random.randn(K,M)
-    opt = {"alg": "python"}
-    #opt = {"alg": "cython"}
-    #opt = {"alg": "inline"}
-    if opt["alg"] == "python":
-        for r in range(R):
-            for i in range(N):
-                for j in range(M):
-                    if Z[i,j] > 0:
-                        e = A[i,j] - np.dot(U[i,:],V[:,j])
-                        U[i,:] = U[i,:] + l*(e*V[:,j] - b*U[i,:])
-                        V[:,j] = V[:,j] + l*(e*U[i,:] - b*V[:,j])
-        A_ = np.dot(U,V)
-    elif opt["alg"] == "cython":
-        import gradient_descent
-        A_ = gradient_descent.gradient_descent(A,U,V,Z,K,R,N,M,l,b)
-    elif opt["alg"] == "inline":
-    #http://technicaldiscovery.blogspot.com/2011/06/speeding-up-python-numpy-cython-and.html
-    #This code has overflow issues on some data... buyer beware
-        from scipy.weave import inline
-        from scipy.weave import converters
-        weave_options = {'extra_compile_args': ['-O3'],
-                         'compiler': 'gcc'}
-        code = \
-r"""
-int r,i,j,k;
-double e;
-for(r=0; r<R; r++){
-    for(i=0; i<N; i++){
-        for(j=0; j<M; j++){
-            for(k=0; k<K; k++){
-                if(Z(i,j)){
-                    e = A(i,j)-(U(i,k)*V(k,j));
-                    U(i,k) = U(i,k) + l*(e*V(k,j)-b*U(i,k));
-                    V(k,j) = V(k,j) + l*(e*U(i,k)-b*V(k,j));
-                }
-            }
-        }
-    }
-}
-"""
-        inline(code,
-               ['A','K','R','l','b','N','M','U','V','Z'],
-               type_converters=converters.blitz,
-               auto_downcast=0,
-               **weave_options)
-        A_ = np.dot(U,V)
+    for r in range(R):
+        for i in range(N):
+            for j in range(M):
+                if Z[i,j] > 0:
+                    e = A[i,j] - np.dot(U[i,:],V[:,j])
+                    U[i,:] = U[i,:] + l*(e*V[:,j] - b*U[i,:])
+                    V[:,j] = V[:,j] + l*(e*U[i,:] - b*V[:,j])
+    A_ = np.dot(U,V)
     return A_+mean
 
 #Rework of lena example
 #From https://gist.github.com/thearn/5424219
 #Full matrix SVD, low rank approximation
-approx = K = 30
+approx = K = 20
 iterations = I = 10
 A = np.asarray(lena(),dtype=np.double)
 A_= lowrank_SVD(A,approx=K)
@@ -98,8 +59,8 @@ plot.imshow(A_, cmap=cm.gray)
 #Sparse matrix setup
 sparseness = .85
 A = lena()
-for i in xrange(len(A)):
-    for j in xrange(len(A[i])):
+for i in xrange(A.shape[0]):
+    for j in xrange(A.shape[1]):
         if np.random.rand() < sparseness:
             A[i,j] = 0.
 
