@@ -71,7 +71,7 @@ def KPMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularizat
     #This forms a spatial smoothness graph
     #See Kernelized Probabilistic Matrix Factorization: Exploiting Graphs and Side Information
     #T. Zhou, H. Shan, A. Banerjee, G. Sapiro
-    bw = bandwidth = 5
+    bw = bandwidth = 2
     #Use scipy.sparse.diags to generate band matrix
     CU = sp.diags([1]*(bw*2+1),range(-bw,bw+1),shape=(N,N)).todense()
     DU = np.diagflat(np.sum(CU,1))
@@ -79,26 +79,18 @@ def KPMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularizat
     DV = np.diagflat(np.sum(CV,1))
     LU = DU - CU
     LV = DV - CV
-    beta = .5
+    beta = .2
     KU = sl.expm(-beta*LU)
     KV = sl.expm(-beta*LV)
     SU = np.linalg.pinv(KU)
     SV = np.linalg.pinv(KV)
-    print U.shape
-    print V.shape
-    print SU.shape
-    print SV.shape
-    print np.dot(SU,U).shape
-    print np.dot(V,SV).shape
     for r in range(R):
         for i in range(N):
             for j in range(M):
                 if Z[i,j] > 0:
                     e = A[i,j] - np.dot(U[i,:],V[:,j])
-                    np.dot(SU[i,:],U)
-                    np.dot(V,SV[:,j])
-                    U[i,:] = U[i,:] + l*(e*V[:,j]) - np.dot(SU[i,:],U)
-                    V[:,j] = V[:,j] + l*(e*U[i,:]) - np.dot(V,SV[:,j])
+                    U[i,:] = U[i,:] + l*(e*V[:,j] - np.dot(SU[i,:],U))
+                    V[:,j] = V[:,j] + l*(e*U[i,:] - np.dot(V,SV[:,j]))
     A_ = np.dot(U,V)
     return A_+mean
 
@@ -137,11 +129,10 @@ A_=PMF(A,approx=K,iterations=I)
 plot.figure()
 plot.title("PMF, RMSE = ")
 plot.imshow(A_, cmap=cm.gray)
-plot.show()
 
 #Sparse matrix, constrained gradient descent example
 A_=KPMF(A,approx=K,iterations=I)
 plot.figure()
 plot.title("Kernelized PMF, RMSE = ")
 plot.imshow(A_, cmap=cm.gray)
-#plot.show()
+plot.show()
