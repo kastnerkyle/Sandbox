@@ -50,7 +50,7 @@ def PMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularizati
     A_ = np.dot(U,V)
     return A_+mean
 
-def KPMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularization_rate=.1):
+def KPMF(input_matrix, approx=50, iterations=30, learning_rate=.001, adjacency_width=5, adjacency_strength=.5):
     A = input_matrix
     Z = np.asarray(A > 0,dtype=np.int)
     A1d = np.ravel(A)
@@ -59,27 +59,29 @@ def KPMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularizat
     K = approx
     R = itr = iterations
     l = learning_rate
-    b = regularization_rate
     N = A.shape[0]
     M = A.shape[1]
     U = np.random.randn(N,K)
     V = np.random.randn(K,M)
-    #Using diffusion kernel with beta=.5
-    #U is the rows, we use an adjacency matrix C
-    #This matrix assumes that rows +- 5 are connected to each other
-    #Columns +- 5 are connected as well
+    #Using diffusion kernel
+    #U are the rows, we use an adjacency matrix CU
+    #This matrix assumes that rows +- are connected to each other
+    #V are the columns are connected as well
     #This forms a spatial smoothness graph
     #See Kernelized Probabilistic Matrix Factorization: Exploiting Graphs and Side Information
     #T. Zhou, H. Shan, A. Banerjee, G. Sapiro
-    bw = bandwidth = 2
-    #Use scipy.sparse.diags to generate band matrix
-    CU = sp.diags([1]*(bw*2+1),range(-bw,bw+1),shape=(N,N)).todense()
+    bw = adjacency_width
+    #Use scipy.sparse.diags to generate band matrix with bandwidth = 2*adjacency_width
+    #[1 1 1 1 0 0]
+    #[0 1 1 1 1 0]
+    #[0 0 1 1 1 1]
+    CU = sp.diags([1]*(2*bw+1),range(-bw,bw+1),shape=(N,N)).todense()
     DU = np.diagflat(np.sum(CU,1))
-    CV = sp.diags([1]*(bw*2+1),range(-bw,bw+1),shape=(M,M)).todense()
+    CV = sp.diags([1]*(2*bw+1),range(-bw,bw+1),shape=(M,M)).todense()
     DV = np.diagflat(np.sum(CV,1))
     LU = DU - CU
     LV = DV - CV
-    beta = .2
+    beta = adjacency_strength
     KU = sl.expm(-beta*LU)
     KV = sl.expm(-beta*LV)
     SU = np.linalg.pinv(KU)
@@ -96,17 +98,22 @@ def KPMF(input_matrix, approx=50, iterations=30, learning_rate=.001, regularizat
 
 #Rework of lena example
 #From https://gist.github.com/thearn/5424219
-#Full matrix SVD, low rank approximation
-approx = K = 20
-iterations = I = 10
+#Sparse lena
 A = np.asarray(lena(),dtype=np.double)
+plot.figure()
+plot.title("Original Lena")
+plot.imshow(A, cmap=cm.gray)
+
+#Full matrix SVD, low rank approximation
+approx = K = 30
+iterations = I = 10
 A_= lowrank_SVD(A,approx=K)
 plot.figure()
 plot.title("Low Rank SVD (full matrix) RMSE = ")
 plot.imshow(A_, cmap=cm.gray)
 
-#Sparse matrix setup
-sparseness = .85
+#Make lena sparse matrix setup, sparseness is the percentage of deleted pixels
+sparseness = .75
 A = lena()
 for i in xrange(A.shape[0]):
     for j in xrange(A.shape[1]):
@@ -121,18 +128,33 @@ plot.imshow(A, cmap=cm.gray)
 #Sparse matrix, regular SVD example, low rank approximation
 A_=lowrank_SVD(A,approx=K)
 plot.figure()
-plot.title("Low Rank SVD, RMSE = ")
+RMSE = np.sum(np.sum(A-A_))/float(A.shape[0]*A.shape[1])
+plot.title("Low Rank SVD, RMSE = " + `RMSE`)
 plot.imshow(A_, cmap=cm.gray)
 
+#Keep leaning rate constant for all examples
+l = 0.001
 #Sparse matrix, gradient descent example
-A_=PMF(A,approx=K,iterations=I)
-plot.figure()
-plot.title("PMF, RMSE = ")
-plot.imshow(A_, cmap=cm.gray)
+#for b in [0.,.1,.2.,.3,.4,.5,.6,.7,.8,.9,1]:
+for b in [.3]:
+    A_=PMF(A,approx=K,iterations=I,regularization_rate=b,learning_rate=l)
+    plot.figure()
+    RMSE = np.sum(np.sum(A-A_))/float(A.shape[0]*A.shape[1])
+    plot.title("PMF, RMSE = " + `RMSE`)
+    plot.imshow(A_, cmap=cm.gray)
 
-#Sparse matrix, constrained gradient descent example
-A_=KPMF(A,approx=K,iterations=I)
-plot.figure()
-plot.title("Kernelized PMF, RMSE = ")
-plot.imshow(A_, cmap=cm.gray)
-plot.show()
+#Sparse matrix, kernelized probabilistic matrix
+#for b in [0.,.1,.2.,.3,.4,.5,.6,.7,.8,.9,1]:
+for b in [.3]:
+    A_=KPMF(A,approx=K,iterations=I,adjacency_width=2,adjacency_strength=b,learning_rate=l)
+    plot.figure()
+    RMSE = np.sum(np.sum(A-A_))/float(A.shape[0]*A.shape[1])
+    plot.title("Kernelized PMF, $\beta$ = " + b + ", RMSE = " + `RMSE`)
+    plot.imshow(A_, cmap=cm.gray)
+
+#Sparse matrix, kernelized probabilistic matrix
+#A_=KPMF(A,approx=K,iterations=I,adjacency_width=2,adjacency_strength=.2)
+#plot.figure()
+#plot.title("Kernelized PMF, RMSE = ")
+#plot.imshow(A_, cmap=cm.gray)
+#plot.show()
