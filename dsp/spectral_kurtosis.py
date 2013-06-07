@@ -228,24 +228,15 @@ elif args.filename[-4:] == ".asc":
 elif args.filename[-4:] == ".dat":
     all_sensor_data = pd.read_csv(args.filename, sep="\t", skiprows=8)
     #Get information tag from string (ex Jan16_0003.asc -> 3)
-    #tag = int(args.filename.split("/")[-1].split("_")[-1].split(".")[0])
-
-    #Correct for 1 based indexing on file tags
-    #tag -= 1
     #Map tag to rpm and load values"
-    rpms = {0:" 1500 rpm ",
-            1:" 2000 rpm ",
-            2:" 2500 rpm ",
-            3:" 3000 rpm "}
-    loads = {0:" 25% load ",
-            1:" 50% load ",
-            2:" 75% load ",
-            3:" 100% load "}
-    print "Tag number is " + `tag`
-    print "Title is calculated as " + `rpms[tag/4]` + `loads[tag%4]`
+    rpm = args.filename.split("_")[2]
+    load = args.filename.split("hp")[0].split("_")[-1]+"hp"
+    if load == "pump.dat" or load == "pumps.dat":
+        load = "syn"
+    print "Title is calculated as " + `rpm` + `load`
     for i in all_sensor_data.columns[2:]:
         run_kurtosis(all_sensor_data[i], nfft, decimate_by, overlap_fraction,
-                info=i+rpms[tag/4]+loads[tag%4],
+                info=i+rpm+load,
                 save_plot=args.save,
                 whiten=args.whiten,
                 twosided=args.twosided)
