@@ -6,7 +6,8 @@ import rbm_numpy
 rbm_numpy.load_dat('mnist.dat', globals())
 dat = dat/255.
 num_layers = 3
-layer_sizes = [dat.shape[0], 500, 250]
+#Should be size num_layers - 1
+layer_sizes = [500, 250]
 w = []
 err, weights = rbm_numpy.train_rbm(dat)
 w.append(weights)
