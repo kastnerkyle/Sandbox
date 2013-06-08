@@ -19,12 +19,12 @@ def train_rbm(data, learning_rate=0.01, momentum=.9, num_epochs=1, batch_size=64
     num_vis = data.shape[0]
 
     w_vh = 0.1 * np.random.randn(num_vis, num_hid)
-    w_v = np.zeros((num_vis, 1))
-    w_h = np.zeros((num_hid, 1))
+    b_v = np.zeros((num_vis, 1))
+    b_h = np.zeros((num_hid, 1))
 
     wu_vh = np.zeros(w_vh.shape)
-    wu_v = np.zeros(w_v.shape)
-    wu_h = np.zeros(w_h.shape)
+    bu_v = np.zeros(b_v.shape)
+    bu_h = np.zeros(b_h.shape)
 
     start_time = time.time()
     err = []
@@ -35,37 +35,37 @@ def train_rbm(data, learning_rate=0.01, momentum=.9, num_epochs=1, batch_size=64
             v = v_true
 
             wu_vh *= momentum
-            wu_v *= momentum
-            wu_h *= momentum
+            bu_v *= momentum
+            bu_h *= momentum
 
-            h = 1./ (1 + np.exp(-(np.dot(w_vh.T, v) + w_h)))
+            h = 1./ (1 + np.exp(-(np.dot(w_vh.T, v) + b_h)))
 
             wu_vh += np.dot(v, h.T)
-            wu_v += v.sum(1)[:, np.newaxis]
-            wu_h += h.sum(1)[:, np.newaxis]
+            bu_v += v.sum(1)[:, np.newaxis]
+            bu_h += h.sum(1)[:, np.newaxis]
 
             h = 1. * (h > np.random.rand(num_hid, batch_size))
 
-            v = 1./ (1 + np.exp(-(np.dot(w_vh, h) + w_v)))
-            h = 1. / (1 + np.exp(-(np.dot(w_vh.T, v) + w_h)))
+            v = 1./ (1 + np.exp(-(np.dot(w_vh, h) + b_v)))
+            h = 1. / (1 + np.exp(-(np.dot(w_vh.T, v) + b_h)))
 
             wu_vh -= np.dot(v, h.T)
-            wu_v -= v.sum(1)[:, np.newaxis]
-            wu_h -= h.sum(1)[:, np.newaxis]
+            bu_v -= v.sum(1)[:, np.newaxis]
+            bu_h -= h.sum(1)[:, np.newaxis]
 
             w_vh += learning_rate/batch_size * wu_vh
-            w_v += learning_rate/batch_size * wu_v
-            w_h += learning_rate/batch_size * wu_h
+            b_v += learning_rate/batch_size * bu_v
+            b_h += learning_rate/batch_size * bu_h
 
             err.append(np.mean((v - v_true)**2))
     print "Mean squared error " + str(np.mean(err))
     print "Time: " + str(time.time() - start_time)
-    return err, w_vh
+    return err, w_vh, b_v, b_h
 
 if __name__ == "__main__":
     load_dat('mnist.dat', globals())
     dat = dat/255.
-    err, weights = train_rbm(dat)
+    err, weights, visbias, hidbias = train_rbm(dat)
     import matplotlib.pyplot as plot
     plot.plot(err)
     plot.show()
